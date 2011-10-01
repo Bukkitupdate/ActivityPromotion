@@ -1,0 +1,24 @@
+name: ActivityPromotion
+main: de.Chumper.ActivityPromotion.ActivityPromotion
+version: 0.1
+commands:
+   ap:
+      description: This is a command for all ActivityPromotion operations.
+      permission: none
+      usage: ap command
+permissions:
+    activitypromotion.*:
+        description: Gives access to all ActivityPromotion informations
+        children:
+            activitypromotion.reload: true
+            activitypromotion.info: true
+            activitypromotion.loginmessage: true
+    activitypromotion.reload:
+        description: reload ActivityPromotion
+        default: op
+    activitypromotion.info:
+        description: See Player informations
+        default: op
+    activitypromotion.loginmessage:
+        description: Shows a message on login
+        default: op
