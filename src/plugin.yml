@@ -1,6 +1,6 @@
 name: ActivityPromotion
 main: de.Chumper.ActivityPromotion.ActivityPromotion
-version: 0.1
+version: 0.2
 commands:
    ap:
       description: This is a command for all ActivityPromotion operations.
@@ -13,6 +13,7 @@ permissions:
             activitypromotion.reload: true
             activitypromotion.info: true
             activitypromotion.loginmessage: true
+        default: op
     activitypromotion.reload:
         description: reload ActivityPromotion
         default: op

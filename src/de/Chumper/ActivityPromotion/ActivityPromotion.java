@@ -1,9 +1,6 @@
 package de.Chumper.ActivityPromotion;
 
-import de.bananaco.permissions.Permissions;
-import de.bananaco.permissions.worlds.WorldPermissionsManager;
 import java.io.File;
-import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -20,15 +17,11 @@ import org.bukkit.util.config.Configuration;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
-import java.util.Iterator;
 import java.util.List;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import ru.tehkode.permissions.PermissionManager;
-import ru.tehkode.permissions.bukkit.PermissionsEx;
 /**
  *
  * @author Nils Plaschke
@@ -36,35 +29,39 @@ import ru.tehkode.permissions.bukkit.PermissionsEx;
 public class ActivityPromotion extends JavaPlugin{
     
     ActivityPromotionPlayerListener playerListener = new ActivityPromotionPlayerListener(this);
-    private Map<String, Long> TimePlayed;
-    private Map<String, Long> TimeLastAction;
-    private Map<Long, String> PromotionGroups;
-    private Map<String, Boolean> passivePeriod;
-    private Map<String, Long> lastLogout;
+    private Map<String, Long> TimePlayed = new HashMap<String, Long>();
+    private Map<String, Long> TimeLastAction = new HashMap<String, Long>();
+    private Map<Long, String> PromotionGroups = new HashMap<Long, String>();
+    private Map<String, Boolean> passivePeriod = new HashMap<String, Boolean>();
+    private Map<String, Long> lastLogout = new HashMap<String, Long>();
     
-    private Logger log; 
+    public Logger log; 
     private PluginManager pm;
     
     protected static Configuration CONFIG;
     protected static Configuration LIST;
     
+    private Permission PermissionHandler;
+    
     private Long idleTime;
+    
+    public String AP;
     
     @Override
     public void onEnable(){
  
-        this.log = this.getServer().getLogger();
-        this.pm = this.getServer().getPluginManager();
-        this.TimePlayed = new HashMap<String, Long>();
-        this.TimeLastAction = new HashMap<String, Long>();
-        this.PromotionGroups = new HashMap<Long, String>();
-        this.passivePeriod = new HashMap<String, Boolean>();
-        this.lastLogout = new HashMap<String, Long>();
+        log = this.getServer().getLogger();
+        pm = this.getServer().getPluginManager();
+        AP = "[ActivityPromotion "+this.getDescription().getVersion()+"] ";
+        
         //register Events
-        pm.registerEvent(Event.Type.PLAYER_ANIMATION, playerListener, Event.Priority.Normal, this);
-        pm.registerEvent(Event.Type.PLAYER_MOVE, playerListener, Event.Priority.Normal, this);
-        pm.registerEvent(Event.Type.PLAYER_QUIT, playerListener, Event.Priority.Normal, this);
-        pm.registerEvent(Event.Type.PLAYER_JOIN, playerListener, Event.Priority.Normal, this);
+        
+        pm.registerEvent(Event.Type.PLAYER_ANIMATION, playerListener, Event.Priority.Lowest, this);
+        pm.registerEvent(Event.Type.PLAYER_MOVE, playerListener, Event.Priority.Lowest, this);
+        pm.registerEvent(Event.Type.PLAYER_QUIT, playerListener, Event.Priority.Lowest, this);
+        pm.registerEvent(Event.Type.PLAYER_JOIN, playerListener, Event.Priority.Lowest, this);
+        
+        setupPermission();
         
         //config
         this.checkConfig();
@@ -74,8 +71,6 @@ public class ActivityPromotion extends JavaPlugin{
         for(Player player: getServer().getOnlinePlayers()) {
             initiatePlayer(player);
         }
-        
-        
         
         log.log(Level.INFO, "[ActivityPromotion "+this.getDescription().getVersion()+"] enabled");
     }
@@ -141,194 +136,159 @@ public class ActivityPromotion extends JavaPlugin{
                 {    
                     if(args[0].equals("reload"))
                     {
-                        if (!player.hasPermission("activitypromotion.reload"))
+                        if (PermissionHandler.hasNode(player, "activitypromotion.reload",player.getWorld().getName()) || player.isOp())
+                        {
+                            saveList();
+                            log.info("[ActivityPromotion "+this.getDescription().getVersion()+"] reload");
+                            //config
+                            this.checkConfig();
+
+                            this.idleTime = Long.parseLong(CONFIG.getString("idleTime"));
+
+                            for(Player pplayer: getServer().getOnlinePlayers()) {
+                                initiatePlayer(pplayer);
+                            }
+                            sender.sendMessage(ChatColor.DARK_GREEN+"Activity Promotion reloaded");
+
+                        } else
                         {
                             sender.sendMessage(ChatColor.DARK_GREEN+"You are not allowed to do that");
                             return true;
                         }
-                        
-                        saveList();
-                        log.info("[ActivityPromotion "+this.getDescription().getVersion()+"] reload");
-                        //config
-                        this.checkConfig();
-
-                        this.idleTime = Long.parseLong(CONFIG.getString("idleTime"));
-
-                        for(Player pplayer: getServer().getOnlinePlayers()) {
-                            initiatePlayer(pplayer);
-                        }
-                        sender.sendMessage(ChatColor.DARK_GREEN+"Activity Promotion reloaded");
                     }
                     else if(args[0].equals("info"))
                     {
-                        if (!player.hasPermission("activitypromotion.info"))
+                        if (PermissionHandler.hasNode(player, "activitypromotion.info",player.getWorld().getName()) || player.isOp())
+                        {
+                            saveList();
+                        
+                            String actime;
+
+                            try
+                            {
+                                actime = LIST.getString("players."+args[1]+".activityTime");
+                            } catch (Exception e)
+                            {
+                                actime = null;
+                            }
+
+                            if(actime == null)
+                            {
+                                sender.sendMessage(ChatColor.DARK_GREEN+"Player not found, try again");
+                                return true;
+                            }
+                            //check if Player exists
+                            if (actime != null)
+                            {
+                                for (int i = 0; i < 14; i++)
+                                {
+                                    sender.sendMessage("");
+                                }
+                                sender.sendMessage(ChatColor.DARK_GREEN+"Informations: "+ChatColor.DARK_RED+args[1]);
+                                sender.sendMessage(ChatColor.DARK_GREEN+"----------------------------------------");
+                                sender.sendMessage(ChatColor.DARK_GREEN+"ActivityTime: "+ChatColor.DARK_RED+formatSek(actime) +""+ ChatColor.DARK_GREEN+ "in " + ChatColor.DARK_RED + formatSek(Long.toString(Long.parseLong(CONFIG.getString("timePeriod"))*60))+" ("+Double.toString((Double)(Double.valueOf(actime)/60) / Double.valueOf(CONFIG.getString("timePeriod")) * 100 )+"%)");
+
+                                if (CONFIG.getBoolean("saveTotalTime", false))
+                                {
+                                    String tT = null;
+                                    try
+                                    {
+                                        tT = Long.toString(Long.valueOf(LIST.getString("players."+args[1]+".totalTime")) + TimePlayed.get(args[1]));
+                                    }catch(Exception e)
+                                    {}
+
+                                    if ( tT != null && !tT.isEmpty())
+                                    {
+                                        sender.sendMessage(ChatColor.DARK_GREEN + "TotalTime: "+ChatColor.DARK_RED+formatSek(tT));
+                                    }
+                                    else
+                                        sender.sendMessage(ChatColor.DARK_GREEN + "TotalTime: "+ChatColor.DARK_RED+"Can't read totalTime");
+                                }
+                                if (CONFIG.getBoolean("saveLastLogout", false))
+                                {
+                                    String lastlogout = LIST.getString("players."+args[1]+".lastLogout");
+
+                                    if ( lastlogout != null && !lastlogout.isEmpty())
+                                    {
+
+                                        Calendar calendar = new GregorianCalendar();
+
+                                        calendar.setTimeInMillis(Long.valueOf(lastlogout)*1000);
+
+                                        Date time = calendar.getTime();
+
+                                        SimpleDateFormat df = new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss" );
+
+                                        sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+df.format(time));
+
+
+                                    }
+                                    else
+                                    {
+                                        sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+"disabled");
+                                    }
+
+
+                                }
+                                else
+                                    sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+"disabled");
+
+                                //promoted Groups
+                                List<String> groups = new ArrayList<String>();
+
+                                for( Map.Entry<Long, String> entry : PromotionGroups.entrySet() )
+                                {
+                                    Long time = entry.getKey();
+                                    String group = entry.getValue(); 
+                                    String worlds = CONFIG.getString("groups." + Long.toString(time) + ".world");
+
+                                    for(String world : worlds.split(","))
+                                    {
+                                        if (PermissionHandler.isInGroup(player, group, world))
+                                            if(!groups.contains(group))
+                                                groups.add(group);
+
+                                    }
+                                }
+
+                                if(groups.size() > 0 )
+                                {
+                                    String gr = "";
+                                    for(int i = 0; i < groups.size();i++)
+                                    {
+                                        gr += " "+groups.get(i);
+                                    }
+
+                                    sender.sendMessage(ChatColor.DARK_GREEN + "Promoted groups:"+ChatColor.DARK_RED+gr);
+                                }
+                                else
+                                    sender.sendMessage(ChatColor.DARK_GREEN + "Promoted groups:"+ChatColor.DARK_RED+" None yet");
+
+                                SimpleDateFormat df = new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss" );
+
+                                Date date = null;
+
+                                try
+                                {
+                                    date = df.parse(CONFIG.getString("nextReset"));
+                                } catch(Exception e)
+                                {
+
+                                }
+                                Long zeit = (Long) Calendar.getInstance().getTimeInMillis()/1000;
+
+                                if (date != null)
+                                {
+                                    Long sek = date.getTime()/1000-zeit;
+                                    sender.sendMessage(ChatColor.DARK_GREEN + "Next Reset in "+ChatColor.DARK_RED+formatSek(sek.toString()));
+                                }
+                            }
+                        }
+                        else
                         {
                             sender.sendMessage(ChatColor.DARK_GREEN+"You are not allowed to do that");
                             return true;
                         }
-                        saveList();
-                        
-                        String actime;
-                        
-                        try
-                        {
-                            actime = LIST.getString("players."+args[1]+".activityTime");
-                        } catch (Exception e)
-                        {
-                            actime = null;
-                        }
-                        
-                        if(actime == null)
-                        {
-                            sender.sendMessage(ChatColor.DARK_GREEN+"Player not found, try again");
-                            return true;
-                        }
-                        //check if Player exists
-                        if (actime != null)
-                        {
-                            for (int i = 0; i < 14; i++)
-                            {
-                                sender.sendMessage("");
-                            }
-                            sender.sendMessage(ChatColor.DARK_GREEN+"Informations: "+ChatColor.DARK_RED+args[1]);
-                            sender.sendMessage(ChatColor.DARK_GREEN+"----------------------------------------");
-                            sender.sendMessage(ChatColor.DARK_GREEN+"ActivityTime: "+ChatColor.DARK_RED+formatSek(actime) +""+ ChatColor.DARK_GREEN+ "in " + ChatColor.DARK_RED + formatSek(Long.toString(Long.parseLong(CONFIG.getString("timePeriod"))*60))+" ("+Double.toString((Double)(Double.valueOf(actime)/60) / Double.valueOf(CONFIG.getString("timePeriod")) * 100 )+"%)");
-                            
-                            if (CONFIG.getBoolean("saveTotalTime", false))
-                            {
-                                String tT = null;
-                                try
-                                {
-                                    tT = Long.toString(Long.valueOf(LIST.getString("players."+args[1]+".totalTime")) + TimePlayed.get(args[1]));
-                                }catch(Exception e)
-                                {}
-                                
-                                if ( tT != null && !tT.isEmpty())
-                                {
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "TotalTime: "+ChatColor.DARK_RED+formatSek(tT));
-                                }
-                                else
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "TotalTime: "+ChatColor.DARK_RED+"Can't read totalTime");
-                            }
-                            if (CONFIG.getBoolean("saveLastLogout", false))
-                            {
-                                String lastlogout = LIST.getString("players."+args[1]+".lastLogout");
-
-                                if ( lastlogout != null && !lastlogout.isEmpty())
-                                {
-
-                                    Calendar calendar = new GregorianCalendar();
-
-                                    calendar.setTimeInMillis(Long.valueOf(lastlogout)*1000);
-
-                                    Date time = calendar.getTime();
-
-                                    SimpleDateFormat df = new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss" );
-
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+df.format(time));
-                                    
-
-                                }
-                                else
-                                {
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+"disabled");
-                                }
-
-
-                            }
-                            else
-                                sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+"disabled");
-                           
-                            //promoted Groups
-                            List<String> groups = new ArrayList<String>();
-                            
-                            for( Map.Entry<Long, String> entry : PromotionGroups.entrySet() )
-                            {
-                                Long time = entry.getKey();
-                                String group = entry.getValue(); 
-                                String worlds = CONFIG.getString("groups." + Long.toString(time) + ".world");
-                                
-                                if(Bukkit.getServer().getPluginManager().isPluginEnabled("PermissionsEx"))
-                                {
-                                    PermissionManager permissions = PermissionsEx.getPermissionManager();
-                                    
-                                    
-                                    
-                                    for(String world : worlds.split(","))
-                                    {
-                                        if (permissions.getUser(args[1]).inGroup(group,world))
-                                            if(!groups.contains(group))
-                                                groups.add(group);
-                                        
-                                    }
-                                }
-                                else if(Bukkit.getServer().getPluginManager().isPluginEnabled("bPermissions"))
-                                {
-
-                                    WorldPermissionsManager wpm = null;
-                                    try {
-                                        wpm = Permissions.getWorldPermissionsManager();
-                                    } catch (Exception e) {
-                                        log.warning("bPermissions not detected!");
-                                        this.getPluginLoader().disablePlugin(this);
-                                    }
-                                    
-                                    
-                                    
-                                    for (World world : getServer().getWorlds())
-                                    {
-                                       for(String cworld : worlds.split(","))
-                                       {
-                                           if(world.getName().equals(cworld.trim()))
-                                           {
-                                               for(String gname : wpm.getPermissionSet(world).getGroups(args[1]))
-                                               {
-
-                                                   if (gname.equals(group))
-                                                       if(!groups.contains(group))
-                                                           groups.add(gname);
-                                               }
-                                           }
-                                       }
-                                       
-                                    }
-                                    
-                                }
-                                
-                            }
-                            if(groups.size() > 0 )
-                            {
-                                String gr = "";
-                                for(int i = 0; i < groups.size();i++)
-                                {
-                                    gr += " "+groups.get(i);
-                                }
-
-                                sender.sendMessage(ChatColor.DARK_GREEN + "Promoted groups:"+ChatColor.DARK_RED+gr);
-                            }
-                            else
-                                sender.sendMessage(ChatColor.DARK_GREEN + "Promoted groups:"+ChatColor.DARK_RED+" None yet");
-                            
-                            SimpleDateFormat df = new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss" );
-                            
-                            Date date = null;
-                            
-                            try
-                            {
-                                date = df.parse(CONFIG.getString("nextReset"));
-                            } catch(Exception e)
-                            {
-                                
-                            }
-                            Long zeit = (Long) Calendar.getInstance().getTimeInMillis()/1000;
-                            
-                            if (date != null)
-                            {
-                                Long sek = date.getTime()/1000-zeit;
-                                sender.sendMessage(ChatColor.DARK_GREEN + "Next Reset in "+ChatColor.DARK_RED+formatSek(sek.toString()));
-                            }
-                        }
-                        
                         
                     }
                     else
@@ -350,6 +310,7 @@ public class ActivityPromotion extends JavaPlugin{
 	}
 	return false;
     }
+    
     
     private void checkConfig() {
         
@@ -548,268 +509,210 @@ public class ActivityPromotion extends JavaPlugin{
     {
         List<String> promotedGroups = new ArrayList<String>();
         List<String> removedGroups = new ArrayList<String>();
-            
+         
         for( Map.Entry<Long, String> entry : PromotionGroups.entrySet() )
         {
             Long time = entry.getKey();
             String group = entry.getValue();
-           
             
+            List<String> worlds = CONFIG.getStringList("groups."+String.valueOf(time)+".world",new ArrayList<String>());
             
-            String world = CONFIG.getString("groups."+String.valueOf(time)+".world");
-            
-            String[] worlds = world.split(",");
-            
-            String startGroup = CONFIG.getString("groups."+String.valueOf(time)+".startGroup");
+            List<String> startGroup = CONFIG.getStringList("groups."+String.valueOf(time)+".startGroup",new ArrayList<String>());
             
             if (TimePlayed.get(player.getName()) > time)
             {
                 
-                //player.sendMessage("You will be promoted...");
-                //promote Player if not promoted yet
-                
-                if(Bukkit.getServer().getPluginManager().isPluginEnabled("PermissionsEx")){
-                    PermissionManager permissions = PermissionsEx.getPermissionManager();
-                    
-                    //PermissionsEx
-                    //permissions.getUser(player.getName()).getGroupsNames()
-                   boolean found = false;
-                   boolean promotion = false;
-                   
-                   //checken, ob starGroup leer ist, wenn ja, dann immer befördern
-                   if(startGroup.isEmpty())
-                       promotion = true;
-                   
-                   for(String name: permissions.getUser(player).getGroupsNames()) {
-                        if(group.equals(name))
-                        {
-                            //found a group
-                            //User is already in that group
-                            found = true;
-                        }
-                        if (group.equals(startGroup))
-                            promotion = true;
-                    }
-                   if(!found && promotion)
+               if (time < 0 && time*-1 < TimePlayed.get(player.getName()))
+               {
+                   //Negative Group - we will skip them, because the played time is above the criteria
+                   continue;
+               }
+               else
+               {
+                   //degrade
+               }
+               
+               
+               //Ok, we have to asign all the groups and nodes...
+               //let us check if we have to ignore the User or not...
+               if(CONFIG.getStringList("groups."+time+"ignoreUser", new ArrayList<String>()).contains(player.getName()))
+               {    
+                   //I am sorry, but we have to ignore the User...
+                   //log.info(AP+"ignoring user \""+player.getName()+"\"");
+                   continue;
+               }
+               //Now let us check the StartGroup and see if hes in the group or not...
+               Boolean promotion = false;
+               
+               for(String groupname : startGroup)
+               {
+                   for(String world: worlds)
                    {
-                       //promote Player to the group
-                       for(int i = 0; i < worlds.length; i++)
+                       if(getServer().getWorld(world) == null)
                        {
-                           //check if world exists
-                            if (getServer().getWorld(worlds[i]) == null)
-                            {
-                                log.warning("[ActivityPromotion "+this.getDescription().getVersion()+"] Wolrd "+worlds[i]+" not found. Check your Configfile");
-                                continue;
-                            }
-                           
-                           permissions.getUser(player).addGroup(group, worlds[i]);
-                           if(!promotedGroups.contains(group))
-                           promotedGroups.add(group);
-                           //player.sendMessage(ChatColor.DARK_GREEN +"You have been promoted to group: "+ChatColor.DARK_RED + group); 
-                           //player.sendMessage(ChatColor.DARK_GREEN +"Group: "+ChatColor.DARK_RED + group);
-                           //player.sendMessage(ChatColor.DARK_GREEN +"World: "+ChatColor.DARK_RED + worlds[i]);
+                           log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
+                           continue;
                        }
-                       saveList();
-                       checkReset();
-                   }
-
-                } else if(Bukkit.getServer().getPluginManager().isPluginEnabled("bPermissions"))
-                {
-                    
-                    WorldPermissionsManager wpm = null;
-                    try {
-                        wpm = Permissions.getWorldPermissionsManager();
-                    } catch (Exception e) {
-                        log.warning("bPermissions not detected!");
-                        this.getPluginLoader().disablePlugin(this);
-                    }
-                    for(int i = 0; i < worlds.length; i++)
-                    {
-                        
-                        //check if world exists
-                        if (getServer().getWorld(worlds[i]) == null)
-                        {
-                            log.warning("[ActivityPromotion "+this.getDescription().getVersion()+"] World "+worlds[i]+" not found. Check your Configfile");
-                            continue;
-                        }
-                        boolean promotion = false;
-
-                        //checken, ob starGroup leer ist, wenn ja, dann immer befördern
-                       if(startGroup.isEmpty())
+                       
+                       if(PermissionHandler.isInGroup(player, groupname.replace("^", ""), world))
+                       {
                            promotion = true;
-
-                        boolean found = false;
-                        
-                        List<String> groups = null;
-                        try {
-                            groups = wpm.getPermissionSet(worlds[i]).getGroups(player.getName());
-                        } catch (Exception e)
-                        {
-                            log.log(Level.WARNING, "ERROR!!!", e);
-                            this.getPluginLoader().disablePlugin(this);
-                        }
-                        if(groups != null)
-                        {
-                            for(int j=0; j < groups.size();j++) {
-                                if(group.equals(groups.get(j)))
-                                {
-                                    //found a group
-                                    //User is already in that group
-                                    found = true;
-                                }
-                                if (groups.get(j).equals(startGroup))
-                                    promotion = true;
-                            }
-                        }
-                        if(!found && promotion)
-                        {
-                           //promote Player to the group
+                       }
+                   }
+               }
+               if(startGroup.isEmpty())
+                   promotion = true;
+               
+               if (promotion)
+               {
+                   for(String groupname : CONFIG.getStringList("groups."+time+".promotionGroup", new ArrayList<String>()))
+                   {
+                       
+                       for(String world : worlds)
+                       {
+                           if(getServer().getWorld(world) == null)
+                           {
+                               log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
+                               continue;
+                           }
+                           if (!groupname.startsWith("^"))
+                           {
+                               if (PermissionHandler.isInGroup(player, groupname, world) == false)
+                               {                               
+                                    PermissionHandler.addGroup(player, groupname, world);
+                                    promotedGroups.add(groupname);
+                               }
+                           }
+                           else
+                           {
+                               if (PermissionHandler.isInGroup(player, groupname.replace("^", ""), world))
+                               {
+                                    PermissionHandler.removeGroup(player, groupname.replace("^", ""), world);
+                                    removedGroups.add(groupname.replace("^", ""));
+                               }
+                           }
+                       }
+                   }
+                   for(String node : CONFIG.getStringList("groups."+time+".permissions", new ArrayList<String>()))
+                   {
+                       for(String world : worlds)
+                       {
+                           if(getServer().getWorld(world) == null)
+                           {
+                               log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
+                               continue;
+                           }
                            
-                               wpm.getPermissionSet(worlds[i]).addGroup(player, group);
-                               if(!promotedGroups.contains(group))
-                               promotedGroups.add(group);
-                               //player.sendMessage(ChatColor.DARK_GREEN +"You have been promoted to group: "+ChatColor.DARK_RED + group);  
-                               //player.sendMessage(ChatColor.DARK_GREEN +"Group: "+ChatColor.DARK_RED + group);
-                               //player.sendMessage(ChatColor.DARK_GREEN +"World: "+ChatColor.DARK_RED + worlds[i]);
-                           
-                           saveList();
-                           checkReset();
-
-                        }
-                    }
-                }
-                else
-                {
-                    log.warning("No Permissionsplugin detected... disabling");
-                    this.getPluginLoader().disablePlugin(this);
-                }
-                
-                
+                           if (!node.startsWith("^"))
+                           {
+                               if (!PermissionHandler.hasNode(player, node, world))
+                               {
+                                   PermissionHandler.addNode(player, node, world);
+                               }
+                           }
+                           else
+                           {
+                               if (PermissionHandler.hasNode(player, node, world))
+                               {
+                                   PermissionHandler.removeNode(player, node, world);
+                               }
+                           }
+                       }
+                   }
+               } 
             }
             else
             {
-                //let us check if we have to depromote a Player
-                
-                if(Bukkit.getServer().getPluginManager().isPluginEnabled("PermissionsEx")){
-                    PermissionManager permissions = PermissionsEx.getPermissionManager();
-                    
-                    
-                    for(String name: permissions.getUser(player).getGroupsNames()) {
-                        if(group.equals(name))
-                        {
-                            //found a group the user shouldnt be in atm
-                            //so cheking passiveMonth
-                            boolean degrade = false;
-                            
-                            //checken, ob starGroup leer ist, wenn ja, dann immer befördern
-                           if(startGroup.isEmpty())
-                               degrade = true;
-                            
-                            for(String name2: permissions.getUser(player).getGroupsNames()) 
-                            {
-                                if (name2.equals(startGroup))
-                                        degrade = true;
-                            }
-                            
-                            if(!passivePeriod.get(player.getName()))
-                            {    
-                                for(int i = 0; i < worlds.length; i++)
-                                {
-                                    //check if world exists
-                                    if (getServer().getWorld(worlds[i]) == null)
-                                    {
-                                        log.warning("[ActivityPromotion "+this.getDescription().getVersion()+"] World "+worlds[i]+" not found. Check your Configfile");
-                                        continue;
-                                    }
-                                    
-                                    if (!degrade)
-                                       continue;
-                                    
-                                    permissions.getUser(player).removeGroup(group,worlds[i]);
-                                    if(!removedGroups.contains(group))
-                                        removedGroups.add(group);
-                                    //player.sendMessage(ChatColor.DARK_GREEN +"You have been removed from group: "+ChatColor.DARK_RED + group); 
-                                    //player.sendMessage(ChatColor.DARK_GREEN +"You have been degraded!"); 
-                                    //player.sendMessage(ChatColor.DARK_GREEN +"Group: "+ChatColor.DARK_RED + group);
-                                    //player.sendMessage(ChatColor.DARK_GREEN +"World: "+ChatColor.DARK_RED + worlds[i]);
-                                }
-                                saveList();
-                                checkReset();
-                            }
-                        }
-                    }
-                }
-                else if(Bukkit.getServer().getPluginManager().isPluginEnabled("bPermissions")){
-                    
-                    WorldPermissionsManager wpm = null;
-                    try {
-                        wpm = Permissions.getWorldPermissionsManager();
-                    } catch (Exception e) {
-                        log.warning("bPermissions not detected!");
-                        this.getPluginLoader().disablePlugin(this);
-                    }
-                    
-                    
-                    for(int i = 0; i < worlds.length; i++)
-                    {  
-                        
-                        //check if world exists
-                        if (getServer().getWorld(worlds[i]) == null)
-                        {
-                            log.warning("[ActivityPromotion "+this.getDescription().getVersion()+"] World "+worlds[i]+" not found. Check the config.yml");
-                            continue;
-                        }
-                            
-                        List<String> groups = wpm.getPermissionSet(worlds[i]).getGroups(player.getName());
-                        
-                        if(groups != null)
-                        {
-                            for(int j=0; j < groups.size();j++) 
-                            { 
-                                
-
-                                if(group.equals(groups.get(j)))
-                                {
-                                    boolean degrade = false;
-
-                                    //checken, ob starGroup leer ist, wenn ja, dann immer befördern
-                                   if(startGroup.isEmpty())
-                                       degrade = true;
-
-                                    for(String name2: wpm.getPermissionSet(worlds[i]).getGroups(player)) 
-                                    {
-                                        if (name2.equals(startGroup))
-                                                degrade = true;
-                                    }
-
-                                    if(!passivePeriod.get(player.getName()))
-                                    { 
-                                            if (!degrade)
-                                                continue;
-                                            
-                                            wpm.getPermissionSet(worlds[i]).removeGroup(player, group);
-                                            if(!removedGroups.contains(group))
-                                                removedGroups.add(group);
-                                            //player.sendMessage(ChatColor.DARK_GREEN +"You have been removed from group: "+ChatColor.DARK_RED + group);  
-                                            //player.sendMessage(ChatColor.DARK_GREEN +"Group: "+ChatColor.DARK_RED + group);
-                                            //player.sendMessage(ChatColor.DARK_GREEN +"World: "+ChatColor.DARK_RED + worlds[i]);
-
-                                        saveList();
-                                        checkReset();
-                                    }
-                                }
-
-                            }
-                        }
-                    }
-                        
-                }
-                else
+                //let us check if we have to degrade a Player   
+                if(!passivePeriod.get(player.getName()))
                 {
-                    log.warning("No Permissionsplugin detected... disabling");
-                    this.getPluginLoader().disablePlugin(this);
+                    //passivePeriod is false so check all groups if they have to be removed
+                    //iterate all groups "promotionGroup"
+                    if(CONFIG.getStringList("groups."+time+".ignoreUser", new ArrayList<String>()).contains(player.getName()))
+                    {
+                        //We have to ignore the User
+                        continue;
+                    }
+                    Boolean degrade = false;
+               
+                   for(String groupname : startGroup)
+                   {
+                       for(String world: worlds)
+                       {
+                           if(getServer().getWorld(world) == null)
+                           {
+                               log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
+                               continue;
+                           }
+
+                           if(PermissionHandler.isInGroup(player, groupname.replace("^", ""), world))
+                           {
+                               degrade = true;
+                           }
+                       }
+                   }
+                   if(startGroup.isEmpty())
+                       degrade = true;
+                   
+                   if(degrade)
+                   {
+                       for(String groupname : CONFIG.getStringList("groups."+time+".promotionGroup", new ArrayList<String>()))
+                       {
+
+                           for(String world : worlds)
+                           {
+                               if(getServer().getWorld(world) == null)
+                               {
+                                   log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
+                                   continue;
+                               }
+                               if (!groupname.startsWith("^"))
+                               {
+                                   if (PermissionHandler.isInGroup(player, groupname, world) == false)
+                                   {                               
+                                        PermissionHandler.removeGroup(player, groupname, world);
+                                        removedGroups.add(groupname);
+                                   }
+                               }
+                               else
+                               {
+                                   if (PermissionHandler.isInGroup(player, groupname.replace("^", ""), world))
+                                   {
+                                        PermissionHandler.addGroup(player, groupname.replace("^", ""), world);
+                                        promotedGroups.add(groupname.replace("^", ""));
+                                   }
+                               }
+                           }
+                       }
+                       for(String node : CONFIG.getStringList("groups."+time+".permissions", new ArrayList<String>()))
+                       {
+                           for(String world : worlds)
+                           {
+                               if(getServer().getWorld(world) == null)
+                               {
+                                   log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
+                                   continue;
+                               }
+
+                               if (!node.startsWith("^"))
+                               {
+                                   if (!PermissionHandler.hasNode(player, node, world))
+                                   {
+                                       PermissionHandler.removeNode(player, node, world);
+                                   }
+                               }
+                               else
+                               {
+                                   if (PermissionHandler.hasNode(player, node, world))
+                                   {
+                                       PermissionHandler.addNode(player, node, world);
+                                   }
+                               }
+                           }
+                       }
+                   }
+                   
                 }
-                
             }
             
         }
@@ -825,6 +728,7 @@ public class ActivityPromotion extends JavaPlugin{
             }
             
             player.sendMessage(ChatColor.DARK_GREEN +"You have been promoted to group: "+ChatColor.DARK_RED + gr);
+            PermissionHandler.reload();
         }
         if(removedGroups.size() > 0 )
         {
@@ -835,6 +739,7 @@ public class ActivityPromotion extends JavaPlugin{
             }
             
             player.sendMessage(ChatColor.DARK_GREEN +"You have been removed from group: "+ChatColor.DARK_RED + gr);  
+            PermissionHandler.reload();
         }
         
     }
@@ -886,6 +791,73 @@ public class ActivityPromotion extends JavaPlugin{
                           LIST.setProperty("players." + players.get(i)+".passivePeriod", Boolean.TRUE);
                           passivePeriod.put(players.get(i), Boolean.TRUE);
                       }
+                      if(CONFIG.getBoolean("groups."+time+".default", false))
+                      {
+                          //default group, so set to false an pass the group to the player
+                          CONFIG.setProperty("groups."+time+".default", Boolean.FALSE);
+                          
+                          //-- promote group and permission
+                          for(String p : LIST.getKeys("players"))
+                          {
+                              Player player = getServer().getPlayer(p);
+                              
+                              for(String groupname : CONFIG.getStringList("groups."+time+".promotionGroup", new ArrayList<String>()))
+                               {
+
+                                   for(String world : CONFIG.getStringList("groups."+time+".world", new ArrayList<String>()))
+                                   {
+                                       if(getServer().getWorld(world) == null)
+                                       {
+                                           log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
+                                           continue;
+                                       }
+                                       if (!groupname.startsWith("^"))
+                                       {
+                                           if (PermissionHandler.isInGroup(player, groupname, world) == false)
+                                           {                               
+                                                PermissionHandler.addGroup(player, groupname, world);
+                                                
+                                           }
+                                       }
+                                       else
+                                       {
+                                           if (PermissionHandler.isInGroup(player, groupname.replace("^", ""), world))
+                                           {
+                                                PermissionHandler.removeGroup(player, groupname.replace("^", ""), world);
+                                                
+                                           }
+                                       }
+                                   }
+                               }
+                               for(String node : CONFIG.getStringList("groups."+time+".permissions", new ArrayList<String>()))
+                               {
+                                   for(String world : CONFIG.getStringList("groups."+time+".world", new ArrayList<String>()))
+                                   {
+                                       if(getServer().getWorld(world) == null)
+                                       {
+                                           log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
+                                           continue;
+                                       }
+
+                                       if (!node.startsWith("^"))
+                                       {
+                                           if (!PermissionHandler.hasNode(player, node, world))
+                                           {
+                                               PermissionHandler.addNode(player, node, world);
+                                           }
+                                       }
+                                       else
+                                       {
+                                           if (PermissionHandler.hasNode(player, node, world))
+                                           {
+                                               PermissionHandler.removeNode(player, node, world);
+                                           }
+                                       }
+                                   }
+                               }
+                          }
+                          
+                      }
                     }
                     
                     if (CONFIG.getBoolean("saveTotalTime", false))
@@ -915,8 +887,11 @@ public class ActivityPromotion extends JavaPlugin{
             //set Time
             calendar.setTime(date);
             
-            // add x minutes to calendar instance
-            calendar.add(Calendar.MINUTE, Integer.parseInt(CONFIG.getString("timePeriod")));
+            while (calendar.getTimeInMillis()/1000 < Calendar.getInstance().getTimeInMillis()/1000)
+            {
+                // add x minutes to calendar instance
+                calendar.add(Calendar.MINUTE, Integer.parseInt(CONFIG.getString("timePeriod")));
+            }
             
             // get the date instance
             Date future = calendar.getTime();
@@ -938,7 +913,7 @@ public class ActivityPromotion extends JavaPlugin{
     }
 
     void showAwayUser(Player player) {
-        if (player.hasPermission("activitypromotion.loginmessage"))
+        if (PermissionHandler.hasNode(player, "activitypromotion.loginmessage",player.getWorld().getName()) || player.isOp())
         {
             
             if(CONFIG.getBoolean("saveLastLogout", false))
@@ -972,7 +947,45 @@ public class ActivityPromotion extends JavaPlugin{
             }
         }
     }
-    
-    
-    
+
+    private void setupPermission() {
+        
+        if(Bukkit.getServer().getPluginManager().isPluginEnabled("PermissionsEx")){
+            PermissionHandler = (Permission) new PermissionEx(this);
+        }
+        else if(Bukkit.getServer().getPluginManager().getPlugin("bPermissions") != null){
+            PermissionHandler = (Permission) new bPermission(this);
+            log.info(AP+"bPermissions detected");
+            log.warning(AP+"bPermissions is not fully supporting individual nodes...");
+            log.warning(AP+"trying with a workaround..."); 
+        }
+        else if(Bukkit.getServer().getPluginManager().getPlugin("PermissionsBukkit") != null){
+            PermissionHandler = (Permission) new PermissionBukkit(this);
+            log.info(AP+"PermissionsBukkit detected");
+            log.warning(AP+"PermissionsBukkit is not fully supporting external calls...");
+            log.warning(AP+"will work with ingamecommands...");
+        }
+        else if(Bukkit.getServer().getPluginManager().getPlugin("Permissions") != null){
+            
+            if ("2.7.4".equals(Bukkit.getServer().getPluginManager().getPlugin("Permissions").getDescription().getVersion()))
+            {    
+                PermissionHandler = (Permission) new Permission274(this);
+                log.info(AP+"Permissions 2.7.4 detected");
+                log.warning(AP+"Permissions 2.7.4 is not supporting multigroups...");
+                log.warning(AP+"Please be aware, that promoting to groups wont work"); 
+            }
+            if ("3.1.6".equals(Bukkit.getServer().getPluginManager().getPlugin("Permissions").getDescription().getVersion()))
+            {    
+                PermissionHandler = (Permission) new Permission316(this);
+                log.info(AP+"Permissions 3.1.6 detected");
+                log.warning(AP+"Permissions 3.1.6 is not fully supporting external calls...");
+                log.warning(AP+"will work with ingamecommands...");
+            }
+        }
+        else
+        {
+            log.warning(AP+"No Permissions detected...");
+        }
+        
+    }
 }
