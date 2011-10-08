@@ -29,10 +29,10 @@ import org.bukkit.command.CommandSender;
 public class ActivityPromotion extends JavaPlugin{
     
     ActivityPromotionPlayerListener playerListener = new ActivityPromotionPlayerListener(this);
-    private Map<String, Long> TimePlayed = new HashMap<String, Long>();
+    public  Map<String, Long> TimePlayed = new HashMap<String, Long>();
     private Map<String, Long> TimeLastAction = new HashMap<String, Long>();
-    private Map<Long, String> PromotionGroups = new HashMap<Long, String>();
-    private Map<String, Boolean> passivePeriod = new HashMap<String, Boolean>();
+    public Map<Long, String> PromotionGroups = new HashMap<Long, String>();
+    private Map<String, Long> passivePeriod = new HashMap<String, Long>();
     private Map<String, Long> lastLogout = new HashMap<String, Long>();
     
     public Logger log; 
@@ -43,7 +43,7 @@ public class ActivityPromotion extends JavaPlugin{
     
     private Permission PermissionHandler;
     
-    private Long idleTime;
+    public Long idleTime;
     
     public String AP;
     
@@ -53,15 +53,18 @@ public class ActivityPromotion extends JavaPlugin{
         log = this.getServer().getLogger();
         pm = this.getServer().getPluginManager();
         AP = "[ActivityPromotion "+this.getDescription().getVersion()+"] ";
-        
         //register Events
         
         pm.registerEvent(Event.Type.PLAYER_ANIMATION, playerListener, Event.Priority.Lowest, this);
         pm.registerEvent(Event.Type.PLAYER_MOVE, playerListener, Event.Priority.Lowest, this);
         pm.registerEvent(Event.Type.PLAYER_QUIT, playerListener, Event.Priority.Lowest, this);
         pm.registerEvent(Event.Type.PLAYER_JOIN, playerListener, Event.Priority.Lowest, this);
+        pm.registerEvent(Event.Type.PLAYER_KICK, playerListener, Event.Priority.Lowest, this);
         
         setupPermission();
+        
+        ActivityPromotionCommandExecutor myExecutor = new ActivityPromotionCommandExecutor(this,PermissionHandler);
+	getCommand("ap").setExecutor(myExecutor);
         
         //config
         this.checkConfig();
@@ -83,7 +86,7 @@ public class ActivityPromotion extends JavaPlugin{
         log.log(Level.INFO, "[ActivityPromotion "+this.getDescription().getVersion()+"] disabled");
         
     }
-    private String formatSek(String time)
+    public String formatSek(String time)
     {
         Long ts = Long.parseLong(time);
         Long days = Long.parseLong("0");
@@ -116,203 +119,13 @@ public class ActivityPromotion extends JavaPlugin{
             result += hours+ " hours ";
         if (min > 0)
             result += min+ " min ";
-        if (ts > 0)
+        if (ts >= 0)
             result += ts+ " sec ";
         
         return result;
     }
-    @Override
-    public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-	Player player = null;
-	if (sender instanceof Player) {
-		player = (Player) sender;
-	}
- 
-	if (command.getName().equalsIgnoreCase("ap")) {
-            if (player == null) {
-                    sender.sendMessage("this command can only be run by a player");
-            } else {
-                if (args.length > 0)
-                {    
-                    if(args[0].equals("reload"))
-                    {
-                        if (PermissionHandler.hasNode(player, "activitypromotion.reload",player.getWorld().getName()) || player.isOp())
-                        {
-                            saveList();
-                            log.info("[ActivityPromotion "+this.getDescription().getVersion()+"] reload");
-                            //config
-                            this.checkConfig();
-
-                            this.idleTime = Long.parseLong(CONFIG.getString("idleTime"));
-
-                            for(Player pplayer: getServer().getOnlinePlayers()) {
-                                initiatePlayer(pplayer);
-                            }
-                            sender.sendMessage(ChatColor.DARK_GREEN+"Activity Promotion reloaded");
-
-                        } else
-                        {
-                            sender.sendMessage(ChatColor.DARK_GREEN+"You are not allowed to do that");
-                            return true;
-                        }
-                    }
-                    else if(args[0].equals("info"))
-                    {
-                        if (PermissionHandler.hasNode(player, "activitypromotion.info",player.getWorld().getName()) || player.isOp())
-                        {
-                            saveList();
-                        
-                            String actime;
-
-                            try
-                            {
-                                actime = LIST.getString("players."+args[1]+".activityTime");
-                            } catch (Exception e)
-                            {
-                                actime = null;
-                            }
-
-                            if(actime == null)
-                            {
-                                sender.sendMessage(ChatColor.DARK_GREEN+"Player not found, try again");
-                                return true;
-                            }
-                            //check if Player exists
-                            if (actime != null)
-                            {
-                                for (int i = 0; i < 14; i++)
-                                {
-                                    sender.sendMessage("");
-                                }
-                                sender.sendMessage(ChatColor.DARK_GREEN+"Informations: "+ChatColor.DARK_RED+args[1]);
-                                sender.sendMessage(ChatColor.DARK_GREEN+"----------------------------------------");
-                                sender.sendMessage(ChatColor.DARK_GREEN+"ActivityTime: "+ChatColor.DARK_RED+formatSek(actime) +""+ ChatColor.DARK_GREEN+ "in " + ChatColor.DARK_RED + formatSek(Long.toString(Long.parseLong(CONFIG.getString("timePeriod"))*60))+" ("+Double.toString((Double)(Double.valueOf(actime)/60) / Double.valueOf(CONFIG.getString("timePeriod")) * 100 )+"%)");
-
-                                if (CONFIG.getBoolean("saveTotalTime", false))
-                                {
-                                    String tT = null;
-                                    try
-                                    {
-                                        tT = Long.toString(Long.valueOf(LIST.getString("players."+args[1]+".totalTime")) + TimePlayed.get(args[1]));
-                                    }catch(Exception e)
-                                    {}
-
-                                    if ( tT != null && !tT.isEmpty())
-                                    {
-                                        sender.sendMessage(ChatColor.DARK_GREEN + "TotalTime: "+ChatColor.DARK_RED+formatSek(tT));
-                                    }
-                                    else
-                                        sender.sendMessage(ChatColor.DARK_GREEN + "TotalTime: "+ChatColor.DARK_RED+"Can't read totalTime");
-                                }
-                                if (CONFIG.getBoolean("saveLastLogout", false))
-                                {
-                                    String lastlogout = LIST.getString("players."+args[1]+".lastLogout");
-
-                                    if ( lastlogout != null && !lastlogout.isEmpty())
-                                    {
-
-                                        Calendar calendar = new GregorianCalendar();
-
-                                        calendar.setTimeInMillis(Long.valueOf(lastlogout)*1000);
-
-                                        Date time = calendar.getTime();
-
-                                        SimpleDateFormat df = new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss" );
-
-                                        sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+df.format(time));
-
-
-                                    }
-                                    else
-                                    {
-                                        sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+"disabled");
-                                    }
-
-
-                                }
-                                else
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+"disabled");
-
-                                //promoted Groups
-                                List<String> groups = new ArrayList<String>();
-
-                                for( Map.Entry<Long, String> entry : PromotionGroups.entrySet() )
-                                {
-                                    Long time = entry.getKey();
-                                    String group = entry.getValue(); 
-                                    String worlds = CONFIG.getString("groups." + Long.toString(time) + ".world");
-
-                                    for(String world : worlds.split(","))
-                                    {
-                                        if (PermissionHandler.isInGroup(player, group, world))
-                                            if(!groups.contains(group))
-                                                groups.add(group);
-
-                                    }
-                                }
-
-                                if(groups.size() > 0 )
-                                {
-                                    String gr = "";
-                                    for(int i = 0; i < groups.size();i++)
-                                    {
-                                        gr += " "+groups.get(i);
-                                    }
-
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "Promoted groups:"+ChatColor.DARK_RED+gr);
-                                }
-                                else
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "Promoted groups:"+ChatColor.DARK_RED+" None yet");
-
-                                SimpleDateFormat df = new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss" );
-
-                                Date date = null;
-
-                                try
-                                {
-                                    date = df.parse(CONFIG.getString("nextReset"));
-                                } catch(Exception e)
-                                {
-
-                                }
-                                Long zeit = (Long) Calendar.getInstance().getTimeInMillis()/1000;
-
-                                if (date != null)
-                                {
-                                    Long sek = date.getTime()/1000-zeit;
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "Next Reset in "+ChatColor.DARK_RED+formatSek(sek.toString()));
-                                }
-                            }
-                        }
-                        else
-                        {
-                            sender.sendMessage(ChatColor.DARK_GREEN+"You are not allowed to do that");
-                            return true;
-                        }
-                        
-                    }
-                    else
-                    {
-                        sender.sendMessage(ChatColor.DARK_GREEN + "/ap info <player> - "+ChatColor.DARK_RED + "get informations about other players");
-                        sender.sendMessage(ChatColor.DARK_GREEN + "/ap reload - "+ChatColor.DARK_RED + "reload ActivityPermission");
-                    }
-                    
-                } 
-                else
-                {    
-                    sender.sendMessage(ChatColor.DARK_GREEN + "/ap info <player> - "+ChatColor.DARK_RED + "get informations about other players");
-                    sender.sendMessage(ChatColor.DARK_GREEN + "/ap reload - "+ChatColor.DARK_RED + "reload ActivityPermission");
-               
-                }
-                // do something else...
-            }
-            return true;
-	}
-	return false;
-    }
     
-    
-    private void checkConfig() {
+    public void checkConfig() {
         
         
         if (!this.getDataFolder().exists())
@@ -326,20 +139,56 @@ public class ActivityPromotion extends JavaPlugin{
         {
             CONFIG = new Configuration (configFile);
             
-            CONFIG.setProperty("groups.60.world", "world,einsacht");
-            CONFIG.setProperty("groups.60.startGroup", "");
-            CONFIG.setProperty("groups.60.promotionGroup", "examplegroup");
+            List<String> worlds = new ArrayList<String>();
+            worlds.add("world");
+            worlds.add("world_nether");
             
-            CONFIG.setProperty("groups.120.world", "world,einsacht");
-            CONFIG.setProperty("groups.120.startGroup", "Member");
-            CONFIG.setProperty("groups.120.promotionGroup", "examplegroup2");
+            List<String> groups = new ArrayList<String>();
+            groups.add("examplegroup");
+            groups.add("examplegroup2");
+            
+            List<String> groups2 = new ArrayList<String>();
+            groups2.add("^examplegroup3");
+            groups2.add("examplegroup4");
+            
+            List<String> groups3 = new ArrayList<String>();
+            groups3.add("Member");
+            
+            List<String> pm = new ArrayList<String>();
+            pm.add("example.build");
+            pm.add("^example.admin");
+            pm.add("activitypromotion.info");
+            
+            List<String> pm1 = new ArrayList<String>();
+            pm1.add("example.build");
+            pm1.add("^example.admin");
+            
+            List<String> iu = new ArrayList<String>();
+            iu.add("Chumper_tm");
+            iu.add("Notch");
+            
+            CONFIG.setProperty("groups.70.world", worlds);
+            CONFIG.setProperty("groups.70.startGroup", "");
+            CONFIG.setProperty("groups.70.promotionGroup", groups);
+            CONFIG.setProperty("groups.70.permissions", pm);
+            CONFIG.setProperty("groups.70.default", Boolean.TRUE);
+            CONFIG.setProperty("groups.70.ignoreUser", iu);
+            CONFIG.setProperty("groups.70.endTime", 80);
+            
+            CONFIG.setProperty("groups.0.world", worlds);
+            CONFIG.setProperty("groups.0.startGroup", groups3);
+            CONFIG.setProperty("groups.0.promotionGroup", groups2);
+            CONFIG.setProperty("groups.0.permissions", pm1);
+            CONFIG.setProperty("groups.0.default", Boolean.FALSE);
+            CONFIG.setProperty("groups.0.ignoreUser", iu);
+            CONFIG.setProperty("groups.0.endTime", 50);
             
             CONFIG.setProperty("idleTime", 10);
             CONFIG.setProperty("resetActivity", Boolean.TRUE);
             CONFIG.setProperty("saveTotalTime", Boolean.TRUE);
             CONFIG.setProperty("saveLastLogout", Boolean.TRUE);
             CONFIG.setProperty("maxAway", 10080);
-            CONFIG.setProperty("timePeriod", 43200);
+            CONFIG.setProperty("timePeriod", 2);
             CONFIG.setProperty("nextReset", "2010-12-21 12:00:00");
             CONFIG.save();
         }
@@ -408,6 +257,8 @@ public class ActivityPromotion extends JavaPlugin{
         
         String name = player.getName();
         
+        saveList();
+        
         if (!this.TimePlayed.containsKey(name))
         {
             //check the LIST
@@ -416,12 +267,12 @@ public class ActivityPromotion extends JavaPlugin{
             if (test != null)
             {
                 this.TimePlayed.put(name, Long.parseLong(LIST.getString("players." + name+".activityTime")));
-                this.passivePeriod.put(name, LIST.getBoolean("players." + name+".passivePeriod", false));
+                this.passivePeriod.put(name, Long.valueOf(LIST.getString("players." + name+".passivePeriod")));
             }
             else
             {    
                 this.TimePlayed.put(name, Long.parseLong("0"));
-                this.passivePeriod.put(name, Boolean.FALSE);
+                this.passivePeriod.put(name, Long.valueOf("0"));
             }
         }
         if(!CONFIG.getBoolean("saveTotalTime", false))
@@ -429,7 +280,14 @@ public class ActivityPromotion extends JavaPlugin{
             LIST.setProperty("players."+name+".totalTime", 0);
         }
         
-        
+        if(!CONFIG.getBoolean("saveLastLogout", false))
+        {   
+            String test = LIST.getString("players." + name+".lastLogout");
+            if(test != null)
+                lastLogout.put(name,Long.parseLong(LIST.getString("players." + name+".lastLogout")));
+            else
+                lastLogout.put(name,Long.parseLong("0"));
+        }
         
         this.TimeLastAction.put(name, Calendar.getInstance().getTimeInMillis()/1000);
         
@@ -437,18 +295,18 @@ public class ActivityPromotion extends JavaPlugin{
         checkPromotion(player);
     }
 
-    void finishPlayer(PlayerQuitEvent event) {
+    void finishPlayer(Player player) {
         //whenever a player quits we will save the map
         
-        Long time = this.TimePlayed.get(event.getPlayer().getName());
+        Long time = this.TimePlayed.get(player.getName());
         //Update Time
         
         Long aktime = (Calendar.getInstance().getTimeInMillis()/1000);
-        this.lastLogout.put(event.getPlayer().getName(), aktime);
+        this.lastLogout.put(player.getName(), aktime);
         
-        if(aktime - this.TimeLastAction.get(event.getPlayer().getName()) <= idleTime)
+        if(aktime - this.TimeLastAction.get(player.getName()) <= idleTime)
         {
-            this.TimePlayed.put(event.getPlayer().getName(), time +  (aktime - this.TimeLastAction.get(event.getPlayer().getName())));
+            this.TimePlayed.put(player.getName(), time +  (aktime - this.TimeLastAction.get(player.getName())));
         }
         
         
@@ -458,7 +316,7 @@ public class ActivityPromotion extends JavaPlugin{
         checkReset();
     }
 
-    private void saveList() {
+    public void saveList() {
        
         for( Map.Entry<String, Long> entry : TimePlayed.entrySet() )
         {
@@ -495,7 +353,13 @@ public class ActivityPromotion extends JavaPlugin{
           }
           if(CONFIG.getBoolean("saveLastLogout", true))
           {
-              LIST.setProperty(pl+".lastLogout", this.lastLogout.get(entry.getKey()));
+              if(this.lastLogout.containsKey(entry.getKey()))
+                  LIST.setProperty(pl+".lastLogout", this.lastLogout.get(entry.getKey()));
+              else
+              {
+                  this.lastLogout.put(entry.getKey(), System.currentTimeMillis()/1000);
+                  LIST.setProperty(pl+".lastLogout", System.currentTimeMillis()/1000);
+              }
           }
                   
         }
@@ -519,19 +383,13 @@ public class ActivityPromotion extends JavaPlugin{
             
             List<String> startGroup = CONFIG.getStringList("groups."+String.valueOf(time)+".startGroup",new ArrayList<String>());
             
-            if (TimePlayed.get(player.getName()) > time)
-            {
+            String endTime = CONFIG.getString("groups."+Long.valueOf(time)+".endTime");
                 
-               if (time < 0 && time*-1 < TimePlayed.get(player.getName()))
-               {
-                   //Negative Group - we will skip them, because the played time is above the criteria
-                   continue;
-               }
-               else
-               {
-                   //degrade
-               }
-               
+            if(endTime == null || endTime.isEmpty()) 
+               endTime = Long.toString(TimePlayed.get(player.getName())+100);
+            
+            if (TimePlayed.get(player.getName()) > time && TimePlayed.get(player.getName()) < Long.valueOf(endTime))
+            {
                
                //Ok, we have to asign all the groups and nodes...
                //let us check if we have to ignore the User or not...
@@ -541,6 +399,7 @@ public class ActivityPromotion extends JavaPlugin{
                    //log.info(AP+"ignoring user \""+player.getName()+"\"");
                    continue;
                }
+               
                //Now let us check the StartGroup and see if hes in the group or not...
                Boolean promotion = false;
                
@@ -578,9 +437,10 @@ public class ActivityPromotion extends JavaPlugin{
                            if (!groupname.startsWith("^"))
                            {
                                if (PermissionHandler.isInGroup(player, groupname, world) == false)
-                               {                               
+                               {   
                                     PermissionHandler.addGroup(player, groupname, world);
-                                    promotedGroups.add(groupname);
+                                    if(!promotedGroups.contains(groupname))
+                                        promotedGroups.add(groupname);
                                }
                            }
                            else
@@ -588,7 +448,9 @@ public class ActivityPromotion extends JavaPlugin{
                                if (PermissionHandler.isInGroup(player, groupname.replace("^", ""), world))
                                {
                                     PermissionHandler.removeGroup(player, groupname.replace("^", ""), world);
-                                    removedGroups.add(groupname.replace("^", ""));
+                                    
+                                    if(!removedGroups.contains(groupname))
+                                        removedGroups.add(groupname.replace("^", ""));
                                }
                            }
                        }
@@ -624,7 +486,7 @@ public class ActivityPromotion extends JavaPlugin{
             else
             {
                 //let us check if we have to degrade a Player   
-                if(!passivePeriod.get(player.getName()))
+                if(passivePeriod.get(player.getName()) < time || passivePeriod.get(player.getName()) > Long.valueOf(endTime))
                 {
                     //passivePeriod is false so check all groups if they have to be removed
                     //iterate all groups "promotionGroup"
@@ -668,18 +530,20 @@ public class ActivityPromotion extends JavaPlugin{
                                }
                                if (!groupname.startsWith("^"))
                                {
-                                   if (PermissionHandler.isInGroup(player, groupname, world) == false)
+                                   if (PermissionHandler.isInGroup(player, groupname.replace("^",""), world) == true)
                                    {                               
                                         PermissionHandler.removeGroup(player, groupname, world);
-                                        removedGroups.add(groupname);
+                                        if(!removedGroups.contains(groupname))
+                                            removedGroups.add(groupname);
                                    }
                                }
                                else
                                {
-                                   if (PermissionHandler.isInGroup(player, groupname.replace("^", ""), world))
+                                   if (PermissionHandler.isInGroup(player, groupname.replace("^", ""), world) == false)
                                    {
                                         PermissionHandler.addGroup(player, groupname.replace("^", ""), world);
-                                        promotedGroups.add(groupname.replace("^", ""));
+                                        if(!promotedGroups.contains(groupname))
+                                            promotedGroups.add(groupname.replace("^", ""));
                                    }
                                }
                            }
@@ -696,14 +560,14 @@ public class ActivityPromotion extends JavaPlugin{
 
                                if (!node.startsWith("^"))
                                {
-                                   if (!PermissionHandler.hasNode(player, node, world))
+                                   if (PermissionHandler.hasNode(player, node, world))
                                    {
                                        PermissionHandler.removeNode(player, node, world);
                                    }
                                }
                                else
                                {
-                                   if (PermissionHandler.hasNode(player, node, world))
+                                   if (!PermissionHandler.hasNode(player, node, world))
                                    {
                                        PermissionHandler.addNode(player, node, world);
                                    }
@@ -777,19 +641,22 @@ public class ActivityPromotion extends JavaPlugin{
             {
                 for (int i = 0; i < players.size(); i++)
                 {
-                    LIST.setProperty("players." + players.get(i)+".passivePeriod", Boolean.FALSE);
-                    passivePeriod.put(players.get(i), Boolean.FALSE);
+                    LIST.setProperty("players." + players.get(i)+".passivePeriod", 0);
+                    passivePeriod.put(players.get(i), Long.valueOf("0"));
                     
                     for( Map.Entry<Long, String> entry : PromotionGroups.entrySet() )
                     {
                       String group = entry.getValue();
                       Long time = entry.getKey();
 
+                      if(!TimePlayed.containsKey(players.get(i)))
+                          TimePlayed.put(players.get(i), Long.parseLong("0"));
+                      
                       if (TimePlayed.get(players.get(i)) >= time)
                       {
                           //set passivePeriod
-                          LIST.setProperty("players." + players.get(i)+".passivePeriod", Boolean.TRUE);
-                          passivePeriod.put(players.get(i), Boolean.TRUE);
+                          LIST.setProperty("players." + players.get(i)+".passivePeriod", TimePlayed.get(players.get(i)));
+                          passivePeriod.put(players.get(i), TimePlayed.get(players.get(i)));
                       }
                       if(CONFIG.getBoolean("groups."+time+".default", false))
                       {
@@ -813,9 +680,9 @@ public class ActivityPromotion extends JavaPlugin{
                                        }
                                        if (!groupname.startsWith("^"))
                                        {
-                                           if (PermissionHandler.isInGroup(player, groupname, world) == false)
+                                           if (PermissionHandler.isInGroup(player, groupname.replace("^",""), world) == false)
                                            {                               
-                                                PermissionHandler.addGroup(player, groupname, world);
+                                                PermissionHandler.addGroup(player, groupname.replace("^",""), world);
                                                 
                                            }
                                        }
@@ -887,7 +754,7 @@ public class ActivityPromotion extends JavaPlugin{
             //set Time
             calendar.setTime(date);
             
-            while (calendar.getTimeInMillis()/1000 < Calendar.getInstance().getTimeInMillis()/1000)
+            while (calendar.getTimeInMillis()/1000 <= Calendar.getInstance().getTimeInMillis()/1000)
             {
                 // add x minutes to calendar instance
                 calendar.add(Calendar.MINUTE, Integer.parseInt(CONFIG.getString("timePeriod")));
@@ -915,22 +782,24 @@ public class ActivityPromotion extends JavaPlugin{
     void showAwayUser(Player player) {
         if (PermissionHandler.hasNode(player, "activitypromotion.loginmessage",player.getWorld().getName()) || player.isOp())
         {
-            
+            saveList();
             if(CONFIG.getBoolean("saveLastLogout", false))
             {
                 //show all Users, which their last logout was some while ago
                 String users = "";
 
-                List<String> empty = new ArrayList<String>();
-                
-                for(String name : LIST.getStringList("players", empty))
+                for( Map.Entry<String, Long> entry : lastLogout.entrySet() )
                 {
-                    Long tsp = Long.valueOf(LIST.getString("players."+name+"lastLogout"));
+                    String group = entry.getKey();
+                    Long tsp = entry.getValue(); 
+                    
+                    
+
                     Long akt = Calendar.getInstance().getTimeInMillis()/1000;
-                    if (akt - tsp >= Long.valueOf(CONFIG.getString("maxAway")))
+                    if (akt - tsp >= (Long.valueOf(CONFIG.getString("maxAway"))*60))
                     {
                         //Too long away
-                        users += " " + name;
+                        users += " " + group;
                     }                    
 
                 }
@@ -950,8 +819,11 @@ public class ActivityPromotion extends JavaPlugin{
 
     private void setupPermission() {
         
-        if(Bukkit.getServer().getPluginManager().isPluginEnabled("PermissionsEx")){
+        if(Bukkit.getServer().getPluginManager().getPlugin("PermissionsEx") != null){
             PermissionHandler = (Permission) new PermissionEx(this);
+            log.info(AP+"PermissionsEX detected");
+            log.info(AP+"PermissionsEX is fully supporting ActivityPromotion");
+            log.info(AP+"Have fun");
         }
         else if(Bukkit.getServer().getPluginManager().getPlugin("bPermissions") != null){
             PermissionHandler = (Permission) new bPermission(this);

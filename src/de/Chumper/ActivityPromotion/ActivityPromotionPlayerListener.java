@@ -2,6 +2,7 @@ package de.Chumper.ActivityPromotion;
 
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerKickEvent;
 import org.bukkit.event.player.PlayerListener;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -42,7 +43,12 @@ class ActivityPromotionPlayerListener extends PlayerListener{
     @Override
     public void onPlayerQuit(PlayerQuitEvent event)
     {
-        plugin.finishPlayer(event);
+        plugin.finishPlayer(event.getPlayer());
+    }
+    @Override
+    public void onPlayerKick(PlayerKickEvent event)
+    {
+        plugin.finishPlayer(event.getPlayer());
     }
    
     

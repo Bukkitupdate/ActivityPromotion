@@ -4,16 +4,7 @@ version: 0.2
 commands:
    ap:
       description: This is a command for all ActivityPromotion operations.
-      permission: none
-      usage: ap command
 permissions:
-    activitypromotion.*:
-        description: Gives access to all ActivityPromotion informations
-        children:
-            activitypromotion.reload: true
-            activitypromotion.info: true
-            activitypromotion.loginmessage: true
-        default: op
     activitypromotion.reload:
         description: reload ActivityPromotion
         default: op
