@@ -27,6 +27,7 @@ import org.bukkit.command.CommandSender;
  * @author Nils Plaschke
  */
 public class ActivityPromotion extends JavaPlugin{
+
     
     ActivityPromotionPlayerListener playerListener = new ActivityPromotionPlayerListener(this);
     public  Map<String, Long> TimePlayed = new HashMap<String, Long>();
@@ -35,6 +36,13 @@ public class ActivityPromotion extends JavaPlugin{
     private Map<String, Long> passivePeriod = new HashMap<String, Long>();
     private Map<String, Long> lastLogout = new HashMap<String, Long>();
     
+    //Neue Überlegung
+    //Eine Hashmap, die das aktuelle Spielerobjekt beinhaltet...
+    //Gute Idee :)
+    //Hashmap(name, Objekt)
+    private Map<String,APPlayer> PLAYER = new HashMap<String,APPlayer>();
+    
+    
     public Logger log; 
     private PluginManager pm;
     
@@ -42,7 +50,7 @@ public class ActivityPromotion extends JavaPlugin{
     protected static Configuration LIST;
     
     private Permission PermissionHandler;
-    
+    private CFileHandler FileHandler;
     public Long idleTime;
     
     public String AP;
@@ -53,14 +61,7 @@ public class ActivityPromotion extends JavaPlugin{
         log = this.getServer().getLogger();
         pm = this.getServer().getPluginManager();
         AP = "[ActivityPromotion "+this.getDescription().getVersion()+"] ";
-        //register Events
-        
-        pm.registerEvent(Event.Type.PLAYER_ANIMATION, playerListener, Event.Priority.Lowest, this);
-        pm.registerEvent(Event.Type.PLAYER_MOVE, playerListener, Event.Priority.Lowest, this);
-        pm.registerEvent(Event.Type.PLAYER_QUIT, playerListener, Event.Priority.Lowest, this);
-        pm.registerEvent(Event.Type.PLAYER_JOIN, playerListener, Event.Priority.Lowest, this);
-        pm.registerEvent(Event.Type.PLAYER_KICK, playerListener, Event.Priority.Lowest, this);
-        
+       
         setupPermission();
         
         ActivityPromotionCommandExecutor myExecutor = new ActivityPromotionCommandExecutor(this,PermissionHandler);
@@ -68,12 +69,20 @@ public class ActivityPromotion extends JavaPlugin{
         
         //config
         this.checkConfig();
+        this.checkFileHandler();
         
         this.idleTime = Long.parseLong(CONFIG.getString("idleTime"));
         
         for(Player player: getServer().getOnlinePlayers()) {
             initiatePlayer(player);
         }
+       
+        //register Events
+        pm.registerEvent(Event.Type.PLAYER_ANIMATION, playerListener, Event.Priority.Lowest, this);
+        pm.registerEvent(Event.Type.PLAYER_MOVE, playerListener, Event.Priority.Lowest, this);
+        pm.registerEvent(Event.Type.PLAYER_QUIT, playerListener, Event.Priority.Lowest, this);
+        pm.registerEvent(Event.Type.PLAYER_JOIN, playerListener, Event.Priority.Lowest, this);
+        pm.registerEvent(Event.Type.PLAYER_KICK, playerListener, Event.Priority.Lowest, this);
         
         log.log(Level.INFO, "[ActivityPromotion "+this.getDescription().getVersion()+"] enabled");
     }
@@ -191,6 +200,7 @@ public class ActivityPromotion extends JavaPlugin{
             CONFIG.setProperty("timePeriod", 2);
             CONFIG.setProperty("nextReset", "2010-12-21 12:00:00");
             CONFIG.save();
+            
         }
         else
             CONFIG = new Configuration (configFile);
@@ -859,5 +869,21 @@ public class ActivityPromotion extends JavaPlugin{
             log.warning(AP+"No Permissions detected...");
         }
         
+    }
+
+    private void checkFileHandler() {
+        
+        if (CONFIG.getBoolean("db.enable", false))
+        {
+            FileHandler = new MySQLHandler(CONFIG.getString("db.adress"), 
+                                           CONFIG.getString("db.port"),
+                                           CONFIG.getString("db.database"), 
+                                           CONFIG.getString("db.user"),
+                                           CONFIG.getString("db.pass"));
+        }
+        else
+        {
+            FileHandler = new FlatFileHandler("list.yml");
+        }
     }
 }

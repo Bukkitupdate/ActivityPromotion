@@ -6,6 +6,7 @@ package de.Chumper.ActivityPromotion;
 
 import de.bananaco.permissions.Permissions;
 import de.bananaco.permissions.worlds.WorldPermissionsManager;
+import java.util.List;
 import org.bukkit.entity.Player;
 
 /**
@@ -39,7 +40,20 @@ public class bPermission implements Permission{
         if(wpm == null)
             init();
         
-        for (String groupname : wpm.getPermissionSet(world).getGroups(player))
+        List<String> check = null;
+        
+        try {
+            check = wpm.getPermissionSet(world).getGroups(player);
+        }
+        catch( Exception e)
+        {
+            check = null;
+        }
+        
+        if(check == null)
+            return false;
+        
+        for (String groupname : check)
         {
             if (group.replace(",","").equals(groupname))
                 return true;
