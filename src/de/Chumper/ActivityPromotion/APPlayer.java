@@ -14,13 +14,24 @@ public class APPlayer
     private Long timeLastAction;
     private Long passivePeriod;
     private Long lastLogout;
+    private Long totalTime;
 
-    public void APPlayer(Long tP, Long tLA, Long pP, Long lL)
+    public void APPlayer()
+    {
+        this.timePlayed = Long.valueOf("0");
+        this.timeLastAction = Long.valueOf("0");
+        this.passivePeriod = Long.valueOf("0");
+        this.lastLogout = Long.valueOf("0");
+        this.totalTime = Long.valueOf("0");
+    }
+    
+    public void APPlayer(Long tP, Long tLA, Long pP, Long lL, Long tT)
     {
         this.timePlayed = tP;
         this.timeLastAction = tLA;
         this.passivePeriod = pP;
         this.lastLogout = lL;
+        this.totalTime = tT;
     }
     
     public Long getLastLogout() {
@@ -53,5 +64,13 @@ public class APPlayer
 
     public void setTimePlayed(Long timePlayed) {
         this.timePlayed = timePlayed;
+    }
+    
+    public Long getTotalTime() {
+        return totalTime;
+    }
+
+    public void setTotalTime(Long totalTime) {
+        this.totalTime = totalTime;
     }
 }

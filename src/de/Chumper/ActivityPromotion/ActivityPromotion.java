@@ -10,7 +10,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.PluginManager;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.config.Configuration;
@@ -20,8 +19,6 @@ import java.util.GregorianCalendar;
 import java.util.List;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandSender;
 /**
  *
  * @author Nils Plaschke
@@ -31,7 +28,7 @@ public class ActivityPromotion extends JavaPlugin{
     
     ActivityPromotionPlayerListener playerListener = new ActivityPromotionPlayerListener(this);
     public  Map<String, Long> TimePlayed = new HashMap<String, Long>();
-    private Map<String, Long> TimeLastAction = new HashMap<String, Long>();
+    public Map<String, Long> TimeLastAction = new HashMap<String, Long>();
     public Map<Long, String> PromotionGroups = new HashMap<Long, String>();
     private Map<String, Long> passivePeriod = new HashMap<String, Long>();
     private Map<String, Long> lastLogout = new HashMap<String, Long>();
@@ -40,7 +37,7 @@ public class ActivityPromotion extends JavaPlugin{
     //Eine Hashmap, die das aktuelle Spielerobjekt beinhaltet...
     //Gute Idee :)
     //Hashmap(name, Objekt)
-    private Map<String,APPlayer> PLAYER = new HashMap<String,APPlayer>();
+    public Map<String,APPlayer> PLAYER = new HashMap<String,APPlayer>();
     
     
     public Logger log; 
@@ -71,6 +68,8 @@ public class ActivityPromotion extends JavaPlugin{
         this.checkConfig();
         this.checkFileHandler();
         
+        PLAYER = FileHandler.load();
+        
         this.idleTime = Long.parseLong(CONFIG.getString("idleTime"));
         
         for(Player player: getServer().getOnlinePlayers()) {
@@ -84,6 +83,8 @@ public class ActivityPromotion extends JavaPlugin{
         pm.registerEvent(Event.Type.PLAYER_JOIN, playerListener, Event.Priority.Lowest, this);
         pm.registerEvent(Event.Type.PLAYER_KICK, playerListener, Event.Priority.Lowest, this);
         
+        
+        
         log.log(Level.INFO, "[ActivityPromotion "+this.getDescription().getVersion()+"] enabled");
     }
     
@@ -91,7 +92,7 @@ public class ActivityPromotion extends JavaPlugin{
     public void onDisable(){
         
         //CONFIG.save();
-        saveList();
+        FileHandler.save(PLAYER);
         log.log(Level.INFO, "[ActivityPromotion "+this.getDescription().getVersion()+"] disabled");
         
     }
@@ -101,7 +102,6 @@ public class ActivityPromotion extends JavaPlugin{
         Long days = Long.parseLong("0");
         Long min = Long.parseLong("0");
         Long hours = Long.parseLong("0");
-        
         
         if (ts > 60*60*24)
         {
@@ -176,6 +176,13 @@ public class ActivityPromotion extends JavaPlugin{
             iu.add("Chumper_tm");
             iu.add("Notch");
             
+            CONFIG.setProperty("db.enable", Boolean.FALSE);
+            CONFIG.setProperty("db.adress", "localhost");
+            CONFIG.setProperty("db.port", 3306);
+            CONFIG.setProperty("db.database", "AP");
+            CONFIG.setProperty("db.user", "root");
+            CONFIG.setProperty("db.pass", "");
+            
             CONFIG.setProperty("groups.70.world", worlds);
             CONFIG.setProperty("groups.70.startGroup", "");
             CONFIG.setProperty("groups.70.promotionGroup", groups);
@@ -205,15 +212,7 @@ public class ActivityPromotion extends JavaPlugin{
         else
             CONFIG = new Configuration (configFile);
         
-        LIST = new Configuration(new File(this.getDataFolder(),"list.yml"));
-        
-        
-        
-        //check if we have passed a resetdate to reset activity
-        //log.log(Level.INFO, "[ActivityPromotion "+this.getDescription().getVersion()+"] Config loaded");
-        
         CONFIG.load();
-        LIST.load();
         
         checkReset();
         
@@ -225,7 +224,6 @@ public class ActivityPromotion extends JavaPlugin{
             String time = String.valueOf(groups.get(i));
             
             String groupname = CONFIG.getString("groups."+time+".promotionGroup");
-                    //CONFIG.getString("groups."+ String.valueOf(time) + ".group");
             
             PromotionGroups.put(Long.valueOf(time), groupname);
         }
@@ -234,151 +232,97 @@ public class ActivityPromotion extends JavaPlugin{
 
     public void updatePlayer(String name) {
         
-        if (this.TimePlayed.containsKey(name))
+        if (PLAYER.get(name) instanceof APPlayer)
         {
-            Long time = this.TimePlayed.get(name);
+                
+            APPlayer tmp = PLAYER.get(name);
+            
+            Long time = tmp.getTimePlayed();
             //Update Time
             
             Long aktime = (long) Calendar.getInstance().getTimeInMillis()/1000;
             
-            Long test = aktime - this.TimeLastAction.get(name);
+            Long test = aktime - tmp.getTimeLastAction();
             
+            Long lA = tmp.getTimeLastAction();
             
-            if(aktime - this.TimeLastAction.get(name) <= idleTime)
+            log.warning(AP+time.toString());
+            log.warning(AP+aktime.toString());
+            log.warning(AP+lA.toString());
+            
+            if(aktime - lA <= idleTime)
             {
-                this.TimePlayed.put(name, (Long) time + (aktime - this.TimeLastAction.get(name)));
+                tmp.setTimePlayed( time + (aktime - lA));
             }
             
-            this.TimeLastAction.put(name, (Long) (Calendar.getInstance().getTimeInMillis()/1000));
+            tmp.setTimeLastAction(Calendar.getInstance().getTimeInMillis()/1000);
+            
+            PLAYER.put(name, tmp);
         }
         else
         {
-            this.TimePlayed.put(name, Long.parseLong("0"));
+            //User is not in PLAYER, create a new one
+            APPlayer tmp = new APPlayer();
+            tmp.setLastLogout(Calendar.getInstance().getTimeInMillis()/1000);
+            tmp.setPassivePeriod(Long.valueOf("0"));
+            tmp.setTimeLastAction(Calendar.getInstance().getTimeInMillis()/1000);
+            tmp.setTimePlayed(Long.valueOf("0"));
+            tmp.setTotalTime(Long.valueOf("0"));
             
-            this.TimeLastAction.put(name, (Long) (Calendar.getInstance().getTimeInMillis()/1000));
-            
+            //now put the player in the Hashmap
+            PLAYER.put(name, tmp);
         }
         
-        this.lastLogout.put(name,(long) Calendar.getInstance().getTimeInMillis()/1000);
-       
+        PLAYER.get(name).setLastLogout(Calendar.getInstance().getTimeInMillis()/1000);
     }
 
     void initiatePlayer(Player player) {
         
         String name = player.getName();
         
-        saveList();
+        //saveList();
         
-        if (!this.TimePlayed.containsKey(name))
+        if (PLAYER.get(name) != null)
         {
-            //check the LIST
-            String test = LIST.getString("players." + name+".activityTime");
+            APPlayer tmp = FileHandler.loadPlayer(name);
+            PLAYER.put(name, tmp);
+        }
+        else
+        {
+            APPlayer tmp = new APPlayer();
+            tmp.setLastLogout(Calendar.getInstance().getTimeInMillis()/1000);
+            tmp.setPassivePeriod(Long.valueOf("0"));
+            tmp.setTimeLastAction(Calendar.getInstance().getTimeInMillis()/1000);
+            tmp.setTotalTime(Long.valueOf("0"));
+            tmp.setTimePlayed(Long.valueOf("0"));
             
-            if (test != null)
-            {
-                this.TimePlayed.put(name, Long.parseLong(LIST.getString("players." + name+".activityTime")));
-                this.passivePeriod.put(name, Long.valueOf(LIST.getString("players." + name+".passivePeriod")));
-            }
-            else
-            {    
-                this.TimePlayed.put(name, Long.parseLong("0"));
-                this.passivePeriod.put(name, Long.valueOf("0"));
-            }
+            PLAYER.put(name, tmp);
         }
-        if(!CONFIG.getBoolean("saveTotalTime", false))
-        {
-            LIST.setProperty("players."+name+".totalTime", 0);
-        }
-        
-        if(!CONFIG.getBoolean("saveLastLogout", false))
-        {   
-            String test = LIST.getString("players." + name+".lastLogout");
-            if(test != null)
-                lastLogout.put(name,Long.parseLong(LIST.getString("players." + name+".lastLogout")));
-            else
-                lastLogout.put(name,Long.parseLong("0"));
-        }
-        
-        this.TimeLastAction.put(name, Calendar.getInstance().getTimeInMillis()/1000);
-        
-        checkReset();
-        checkPromotion(player);
+
+        PLAYER.get(name).setTimeLastAction(Calendar.getInstance().getTimeInMillis()/1000);
     }
 
     void finishPlayer(Player player) {
-        //whenever a player quits we will save the map
+        //whenever a player quits we will save the specific entry
         
-        Long time = this.TimePlayed.get(player.getName());
+        Long time = PLAYER.get(player.getName()).getTimePlayed();
         //Update Time
         
         Long aktime = (Calendar.getInstance().getTimeInMillis()/1000);
-        this.lastLogout.put(player.getName(), aktime);
         
-        if(aktime - this.TimeLastAction.get(player.getName()) <= idleTime)
+        PLAYER.get(player.getName()).setLastLogout(aktime);
+        
+        Long lA = PLAYER.get(player.getName()).getTimeLastAction();
+        
+        if(aktime - lA <= idleTime)
         {
-            this.TimePlayed.put(player.getName(), time +  (aktime - this.TimeLastAction.get(player.getName())));
+            PLAYER.get(player.getName()).setTimePlayed(time + (aktime - lA));
         }
         
-        
-        
-        
-        this.saveList();
+        FileHandler.savePlayer(player.getName(), PLAYER.get(player.getName()));
         checkReset();
     }
 
-    public void saveList() {
-       
-        for( Map.Entry<String, Long> entry : TimePlayed.entrySet() )
-        {
-          String pl = "players." + entry.getKey();
-          Long time = entry.getValue();
-          
-          LIST.setProperty(pl+".passivePeriod", passivePeriod.get(entry.getKey()));
-          
-          
-          if (LIST.getString(pl+".activityTime") != null)
-              {
-                Long totaltime = Long.parseLong(LIST.getString(pl+".activityTime"));
-                if (time > totaltime)
-                    LIST.setProperty(pl+".activityTime", time);
-                else
-                    LIST.setProperty(pl+".activityTime", totaltime);
-              }
-          else
-          {
-              LIST.setProperty(pl+".activityTime", time);
-          }
-          
-          if(CONFIG.getBoolean("saveTotalTime", true))
-          {
-          //    if (LIST.getString(pl+".totalTime") != null)
-          //   {
-          //        Long totaltime = Long.parseLong(LIST.getString(pl+".totalTime"));
-          //        LIST.setProperty(pl+".totalTime", totaltime + time);
-          //    }
-          //    else   
-          //    {
-          //        LIST.setProperty(pl+".totalTime", time);
-          //    }
-          }
-          if(CONFIG.getBoolean("saveLastLogout", true))
-          {
-              if(this.lastLogout.containsKey(entry.getKey()))
-                  LIST.setProperty(pl+".lastLogout", this.lastLogout.get(entry.getKey()));
-              else
-              {
-                  this.lastLogout.put(entry.getKey(), System.currentTimeMillis()/1000);
-                  LIST.setProperty(pl+".lastLogout", System.currentTimeMillis()/1000);
-              }
-          }
-                  
-        }
-        
-        //save
-        LIST.save();
-        LIST.load();
-        
-    }
     public void checkPromotion(Player player)
     {
         List<String> promotedGroups = new ArrayList<String>();
@@ -396,9 +340,9 @@ public class ActivityPromotion extends JavaPlugin{
             String endTime = CONFIG.getString("groups."+Long.valueOf(time)+".endTime");
                 
             if(endTime == null || endTime.isEmpty()) 
-               endTime = Long.toString(TimePlayed.get(player.getName())+100);
+               endTime = Long.toString(PLAYER.get(player.getName()).getTimePlayed()+100);
             
-            if (TimePlayed.get(player.getName()) > time && TimePlayed.get(player.getName()) < Long.valueOf(endTime))
+            if (PLAYER.get(player.getName()).getTimePlayed() > time && PLAYER.get(player.getName()).getTimePlayed() < Long.valueOf(endTime))
             {
                
                //Ok, we have to asign all the groups and nodes...
@@ -496,7 +440,7 @@ public class ActivityPromotion extends JavaPlugin{
             else
             {
                 //let us check if we have to degrade a Player   
-                if(passivePeriod.get(player.getName()) < time || passivePeriod.get(player.getName()) > Long.valueOf(endTime))
+                if(PLAYER.get(player.getName()).getPassivePeriod() < time || PLAYER.get(player.getName()).getPassivePeriod() > Long.valueOf(endTime))
                 {
                     //passivePeriod is false so check all groups if they have to be removed
                     //iterate all groups "promotionGroup"
@@ -623,8 +567,6 @@ public class ActivityPromotion extends JavaPlugin{
         if (CONFIG.getBoolean("resetActivity", true) == false)
             return;
         
-        saveList();
-        
         SimpleDateFormat df = new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss" );
         
         Date date = null;
@@ -643,120 +585,98 @@ public class ActivityPromotion extends JavaPlugin{
             //date passed, reset the activity
             log.log(Level.INFO, "[ActivityPromotion "+this.getDescription().getVersion()+"] A resetDate has been passed. Reseting all stats");
             
-            LIST.load();
+            //--- NEW
             
-            List<String> players = LIST.getKeys("players");
-            
-            if(players != null)
+            for( Map.Entry<String, APPlayer> entry : PLAYER.entrySet() )
             {
-                for (int i = 0; i < players.size(); i++)
+                String name = entry.getKey();
+                APPlayer pl = entry.getValue();
+                Player player = this.getServer().getPlayer(name); 
+                
+                //first of all set passivePeriod to zero (0)
+                pl.setPassivePeriod(Long.valueOf("0"));
+              
+                //now go through the promotion groups
+                for( Map.Entry<Long, String> entry2 : PromotionGroups.entrySet() )
                 {
-                    LIST.setProperty("players." + players.get(i)+".passivePeriod", 0);
-                    passivePeriod.put(players.get(i), Long.valueOf("0"));
+                    String group = entry2.getValue();
+                    Long time = entry2.getKey();
                     
-                    for( Map.Entry<Long, String> entry : PromotionGroups.entrySet() )
+                    //set passiveperiod
+                    if(PLAYER.get(name).getTimePlayed() > time)
                     {
-                      String group = entry.getValue();
-                      Long time = entry.getKey();
-
-                      if(!TimePlayed.containsKey(players.get(i)))
-                          TimePlayed.put(players.get(i), Long.parseLong("0"));
-                      
-                      if (TimePlayed.get(players.get(i)) >= time)
-                      {
-                          //set passivePeriod
-                          LIST.setProperty("players." + players.get(i)+".passivePeriod", TimePlayed.get(players.get(i)));
-                          passivePeriod.put(players.get(i), TimePlayed.get(players.get(i)));
-                      }
-                      if(CONFIG.getBoolean("groups."+time+".default", false))
-                      {
-                          //default group, so set to false an pass the group to the player
-                          CONFIG.setProperty("groups."+time+".default", Boolean.FALSE);
-                          
-                          //-- promote group and permission
-                          for(String p : LIST.getKeys("players"))
-                          {
-                              Player player = getServer().getPlayer(p);
-                              
-                              for(String groupname : CONFIG.getStringList("groups."+time+".promotionGroup", new ArrayList<String>()))
-                               {
-
-                                   for(String world : CONFIG.getStringList("groups."+time+".world", new ArrayList<String>()))
-                                   {
-                                       if(getServer().getWorld(world) == null)
-                                       {
-                                           log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
-                                           continue;
-                                       }
-                                       if (!groupname.startsWith("^"))
-                                       {
-                                           if (PermissionHandler.isInGroup(player, groupname.replace("^",""), world) == false)
-                                           {                               
-                                                PermissionHandler.addGroup(player, groupname.replace("^",""), world);
-                                                
-                                           }
-                                       }
-                                       else
-                                       {
-                                           if (PermissionHandler.isInGroup(player, groupname.replace("^", ""), world))
-                                           {
-                                                PermissionHandler.removeGroup(player, groupname.replace("^", ""), world);
-                                                
-                                           }
-                                       }
-                                   }
-                               }
-                               for(String node : CONFIG.getStringList("groups."+time+".permissions", new ArrayList<String>()))
-                               {
-                                   for(String world : CONFIG.getStringList("groups."+time+".world", new ArrayList<String>()))
-                                   {
-                                       if(getServer().getWorld(world) == null)
-                                       {
-                                           log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
-                                           continue;
-                                       }
-
-                                       if (!node.startsWith("^"))
-                                       {
-                                           if (!PermissionHandler.hasNode(player, node, world))
-                                           {
-                                               PermissionHandler.addNode(player, node, world);
-                                           }
-                                       }
-                                       else
-                                       {
-                                           if (PermissionHandler.hasNode(player, node, world))
-                                           {
-                                               PermissionHandler.removeNode(player, node, world);
-                                           }
-                                       }
-                                   }
-                               }
-                          }
-                          
-                      }
+                        PLAYER.get(name).setPassivePeriod(PLAYER.get(name).getTimePlayed());
                     }
                     
-                    if (CONFIG.getBoolean("saveTotalTime", false))
+                    //now check if the group is default or not
+                    //so we can promote the players
+                    if(CONFIG.getBoolean("groups."+time+".default", false))
                     {
-                        Long actime = Long.valueOf(LIST.getString("players." + players.get(i)+".activityTime"));
+                        //the group IS default so we have to promote the player
+                        //but first we set the group default to false
+                        CONFIG.setProperty("groups."+time+".default", Boolean.FALSE);
                         
-                        Long tTime;
-                        
-                        try
-                        {
-                            tTime = Long.valueOf(LIST.getString("players." + players.get(i)+".totalTime"));
-                        } catch (Exception e)
-                        {
-                            tTime = Long.parseLong("0");
-                        }
-                        LIST.setProperty("players."+players.get(i)+".totalTime", actime + tTime);
-                    }
+                        //Now promote the player
+                        for(String groupname : CONFIG.getStringList("groups."+time+".promotionGroup", new ArrayList<String>()))
+                       {
+                           for(String world : CONFIG.getStringList("groups."+time+".world", new ArrayList<String>()))
+                           {
+                               if(getServer().getWorld(world) == null)
+                               {
+                                   log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
+                                   continue;
+                               }
+                               if (!groupname.startsWith("^"))
+                               {
+                                   if (PermissionHandler.isInGroup(player, groupname.replace("^",""), world) == false)
+                                   {                               
+                                        PermissionHandler.addGroup(player, groupname.replace("^",""), world);
+                                   }
+                               }
+                               else
+                               {
+                                   if (PermissionHandler.isInGroup(player, groupname.replace("^", ""), world))
+                                   {
+                                        PermissionHandler.removeGroup(player, groupname.replace("^", ""), world);
+                                   }
+                               }
+                           }
+                       }
+                       for(String node : CONFIG.getStringList("groups."+time+".permissions", new ArrayList<String>()))
+                       {
+                           for(String world : CONFIG.getStringList("groups."+time+".world", new ArrayList<String>()))
+                           {
+                               if(getServer().getWorld(world) == null)
+                               {
+                                   log.warning(AP+"Could not find the world \""+world+"\" May you spelled it wrong?");
+                                   continue;
+                               }
+
+                               if (!node.startsWith("^"))
+                               {
+                                   if (!PermissionHandler.hasNode(player, node, world))
+                                   {
+                                       PermissionHandler.addNode(player, node, world);
+                                   }
+                               }
+                               else
+                               {
+                                   if (PermissionHandler.hasNode(player, node, world))
+                                   {
+                                       PermissionHandler.removeNode(player, node, world);
+                                   }
+                               }
+                           }
+                       }
+                    }  
+                    //After promoting we will set the totalTime
+                    PLAYER.get(name).setTotalTime(PLAYER.get(name).getTotalTime() + PLAYER.get(name).getTimePlayed());
                     
-                    LIST.setProperty("players."+players.get(i)+".activityTime", 0);
-                    TimePlayed.put(players.get(i), Long.parseLong("0"));
+                    //At least set timePlayed to zero (0) and everything is done
+                    PLAYER.get(name).setTimePlayed(Long.valueOf("0"));
                 }
             }
+            
             //everything done, so lets set the new date...
             // create Calendar instance with actual date
             Calendar calendar = new GregorianCalendar();
@@ -776,40 +696,60 @@ public class ActivityPromotion extends JavaPlugin{
             CONFIG.setProperty("nextReset", df.format(future));
             
             CONFIG.save();
-            saveList();
             
             log.info("[ActivityPromotion "+this.getDescription().getVersion()+"] new resetDate set to "+df.format(future));
             getServer().broadcastMessage(ChatColor.DARK_GREEN + "Activity resetted.");
             getServer().broadcastMessage(ChatColor.DARK_GREEN + "Next reset in "+ChatColor.DARK_RED+formatSek(Long.toString(Long.valueOf(CONFIG.getString("timePeriod"))*60)));
             
-        //done later
-            //reset all stats and set passivePeriod
-            
-            
+            //completly done
         }
     }
 
     void showAwayUser(Player player) {
         if (PermissionHandler.hasNode(player, "activitypromotion.loginmessage",player.getWorld().getName()) || player.isOp())
         {
-            saveList();
+            //save the list is not necessary at the moment
+            //saveList();
+            
             if(CONFIG.getBoolean("saveLastLogout", false))
             {
+                
+                //save the list and load it again
+                FileHandler.save(PLAYER);
+                
+                PLAYER = FileHandler.load();
+                
+                
                 //show all Users, which their last logout was some while ago
                 String users = "";
 
-                for( Map.Entry<String, Long> entry : lastLogout.entrySet() )
+                for( Map.Entry<String, APPlayer> entry : PLAYER.entrySet() )
                 {
-                    String group = entry.getKey();
-                    Long tsp = entry.getValue(); 
+                    String name = entry.getKey();
+                    APPlayer pl = entry.getValue(); 
                     
+                    Long maxA = Long.valueOf(CONFIG.getString("maxAway"));
                     
+                    if(maxA == null)
+                    {
+                        maxA = Long.valueOf(10080*60);
+                    }
+                    else
+                    {
+                        maxA = maxA * 60;
+                    }
 
                     Long akt = Calendar.getInstance().getTimeInMillis()/1000;
-                    if (akt - tsp >= (Long.valueOf(CONFIG.getString("maxAway"))*60))
+                    
+                    log.warning(AP+akt.toString());
+                    log.warning(AP+maxA.toString());
+                    log.warning(AP+name);
+                    log.warning(AP+PLAYER.get(name).getLastLogout().toString());
+                    
+                    if (akt - PLAYER.get(name).getLastLogout() >= maxA)
                     {
                         //Too long away
-                        users += " " + group;
+                        users += " " + name;
                     }                    
 
                 }
@@ -875,15 +815,23 @@ public class ActivityPromotion extends JavaPlugin{
         
         if (CONFIG.getBoolean("db.enable", false))
         {
-            FileHandler = new MySQLHandler(CONFIG.getString("db.adress"), 
+            log.info(AP+" MySQL selected. Will try do connect");
+            
+            FileHandler = new MySQLHandler(this,
+                                           CONFIG.getString("db.adress"), 
                                            CONFIG.getString("db.port"),
                                            CONFIG.getString("db.database"), 
                                            CONFIG.getString("db.user"),
                                            CONFIG.getString("db.pass"));
+            
+            
+            
         }
         else
         {
-            FileHandler = new FlatFileHandler("list.yml");
+            log.info(AP+" Normal yaml file selected. Will save everything in list.yml");
+            
+            FileHandler = new FlatFileHandler(this, "list.yml");
         }
     }
 }

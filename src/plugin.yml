@@ -1,6 +1,6 @@
 name: ActivityPromotion
 main: de.Chumper.ActivityPromotion.ActivityPromotion
-version: 0.2
+version: 0.3
 commands:
    ap:
       description: This is a command for all ActivityPromotion operations.

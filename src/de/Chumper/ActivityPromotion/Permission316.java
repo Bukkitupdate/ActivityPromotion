@@ -6,6 +6,8 @@ package de.Chumper.ActivityPromotion;
 
 import com.nijiko.permissions.PermissionHandler;
 import com.nijikokun.bukkit.Permissions.Permissions;
+import de.Chumper.ActivityPromotion.ActivityPromotion;
+import de.Chumper.ActivityPromotion.Permission;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;

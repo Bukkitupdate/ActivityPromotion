@@ -43,7 +43,9 @@ public class ActivityPromotionCommandExecutor implements CommandExecutor{
                     {
                         if (PermissionHandler.hasNode(player, "activitypromotion.reload",player.getWorld().getName()) || player.isOp())
                         {
-                            plugin.saveList();
+                            //Why do we have to save the map all the time???
+                            //plugin.saveList();
+                            
                             plugin.log.info("[ActivityPromotion "+plugin.getDescription().getVersion()+"] reload");
                             //config
                             plugin.checkConfig();
@@ -65,133 +67,120 @@ public class ActivityPromotionCommandExecutor implements CommandExecutor{
                     {
                         if (PermissionHandler.hasNode(player, "activitypromotion.info",player.getWorld().getName()) || player.isOp())
                         {
-                            plugin.saveList();
+                            //Again, why do we have to save the map all the time?
+                            //plugin.saveList();
                         
-                            String actime;
+
+                            if(plugin.PLAYER.get(args[1]) == null)
+                            {
+                                sender.sendMessage(ChatColor.DARK_GREEN+"Can't find the player "+ChatColor.DARK_RED+args[1]);
+                                return true;
+                            }
+                            
+                            //The Player is in the Hashmap, so diplay Informations
+                        
+                            String actime = Long.toString(plugin.PLAYER.get(args[1]).getTimePlayed());
+                            
+                            for (int i = 0; i < 14; i++)
+                            {
+                                sender.sendMessage("");
+                            }
+                            sender.sendMessage(ChatColor.DARK_GREEN+"Informations: "+ChatColor.DARK_RED+args[1]);
+                            sender.sendMessage(ChatColor.DARK_GREEN+"----------------------------------------");
+                            sender.sendMessage(ChatColor.DARK_GREEN+"ActivityTime: "+ChatColor.DARK_RED+plugin.formatSek(actime) +""+ ChatColor.DARK_GREEN+ "in " + ChatColor.DARK_RED + plugin.formatSek(Long.toString(Long.parseLong(plugin.CONFIG.getString("timePeriod"))*60))+" ("+Double.toString((Double)(Double.valueOf(actime)/60) / Double.valueOf(plugin.CONFIG.getString("timePeriod")) * 100 )+"%)");
+//--------
+                            if (plugin.CONFIG.getBoolean("saveTotalTime", false))
+                            {
+                                String tT = Long.toString(plugin.PLAYER.get(args[1]).getTotalTime());
+                                
+                                sender.sendMessage(ChatColor.DARK_GREEN + "TotalTime: "+ChatColor.DARK_RED+plugin.formatSek(tT));
+                               
+                            }
+                            if (plugin.CONFIG.getBoolean("saveLastLogout", false))
+                            {
+                                String lastlogout = Long.toString(plugin.PLAYER.get(args[1]).getLastLogout());
+
+                                if ( !lastlogout.equals("0"))
+                                {
+
+                                    Calendar calendar = new GregorianCalendar();
+
+                                    calendar.setTimeInMillis(Long.valueOf(lastlogout)*1000);
+
+                                    Date time = calendar.getTime();
+
+                                    SimpleDateFormat df = new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss" );
+
+                                    sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+df.format(time));
+
+
+                                }
+                                else
+                                {
+                                    sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+"disabled");
+                                }
+
+
+                            }
+                            else
+                                sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+"disabled");
+
+                            //---------
+                            //promoted Groups
+                            List<String> groups = new ArrayList<String>();
+
+                            for( Map.Entry<Long, String> entry : plugin.PromotionGroups.entrySet() )
+                            {
+                                Long time = entry.getKey();
+                                String group = entry.getValue(); 
+
+                                for(String world : plugin.CONFIG.getStringList("groups." + Long.toString(time) + ".world",new ArrayList<String>()))
+                                {
+
+                                    for (String groupname : plugin.CONFIG.getStringList("groups."+Long.toString(time)+".promotionGroup",new ArrayList<String>()))
+                                    {
+                                        if(!groupname.startsWith("^"))
+                                            if (PermissionHandler.isInGroup(player, groupname, world))
+                                                if(!groups.contains(groupname))
+                                                    groups.add(groupname);
+
+                                    }
+                                }
+                            }
+
+                            if(groups.size() > 0 )
+                            {
+                                String gr = "";
+                                for(int i = 0; i < groups.size();i++)
+                                {
+                                    gr += " "+groups.get(i);
+                                }
+
+                                sender.sendMessage(ChatColor.DARK_GREEN + "Promoted groups:"+ChatColor.DARK_RED+gr);
+                            }
+                            else
+                                sender.sendMessage(ChatColor.DARK_GREEN + "Promoted groups:"+ChatColor.DARK_RED+" None yet");
+
+                            SimpleDateFormat df = new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss" );
+
+                            Date date = null;
 
                             try
                             {
-                                actime = plugin.LIST.getString("players."+args[1]+".activityTime");
-                            } catch (Exception e)
+                                date = df.parse(plugin.CONFIG.getString("nextReset"));
+                            } catch(Exception e)
                             {
-                                actime = null;
-                            }
 
-                            if(actime == null)
+                            }
+                            Long zeit = (Long) Calendar.getInstance().getTimeInMillis()/1000;
+
+                            if (date != null)
                             {
-                                sender.sendMessage(ChatColor.DARK_GREEN+"Player not found, try again");
-                                return true;
+                                Long sek = date.getTime()/1000-zeit;
+                                sender.sendMessage(ChatColor.DARK_GREEN + "Next Reset in "+ChatColor.DARK_RED+plugin.formatSek(sek.toString()));
                             }
-                            //check if Player exists
-                            if (actime != null)
-                            {
-                                for (int i = 0; i < 14; i++)
-                                {
-                                    sender.sendMessage("");
-                                }
-                                sender.sendMessage(ChatColor.DARK_GREEN+"Informations: "+ChatColor.DARK_RED+args[1]);
-                                sender.sendMessage(ChatColor.DARK_GREEN+"----------------------------------------");
-                                sender.sendMessage(ChatColor.DARK_GREEN+"ActivityTime: "+ChatColor.DARK_RED+plugin.formatSek(actime) +""+ ChatColor.DARK_GREEN+ "in " + ChatColor.DARK_RED + plugin.formatSek(Long.toString(Long.parseLong(plugin.CONFIG.getString("timePeriod"))*60))+" ("+Double.toString((Double)(Double.valueOf(actime)/60) / Double.valueOf(plugin.CONFIG.getString("timePeriod")) * 100 )+"%)");
-
-                                if (plugin.CONFIG.getBoolean("saveTotalTime", false))
-                                {
-                                    String tT = null;
-                                    try
-                                    {
-                                        tT = Long.toString(Long.valueOf(plugin.LIST.getString("players."+args[1]+".totalTime")) + plugin.TimePlayed.get(args[1]));
-                                    }catch(Exception e)
-                                    {}
-
-                                    if ( tT != null && !tT.isEmpty())
-                                    {
-                                        sender.sendMessage(ChatColor.DARK_GREEN + "TotalTime: "+ChatColor.DARK_RED+plugin.formatSek(tT));
-                                    }
-                                    else
-                                        sender.sendMessage(ChatColor.DARK_GREEN + "TotalTime: "+ChatColor.DARK_RED+"Can't read totalTime");
-                                }
-                                if (plugin.CONFIG.getBoolean("saveLastLogout", false))
-                                {
-                                    String lastlogout = plugin.LIST.getString("players."+args[1]+".lastLogout");
-
-                                    if ( lastlogout != null && !lastlogout.isEmpty())
-                                    {
-
-                                        Calendar calendar = new GregorianCalendar();
-
-                                        calendar.setTimeInMillis(Long.valueOf(lastlogout)*1000);
-
-                                        Date time = calendar.getTime();
-
-                                        SimpleDateFormat df = new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss" );
-
-                                        sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+df.format(time));
-
-
-                                    }
-                                    else
-                                    {
-                                        sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+"disabled");
-                                    }
-
-
-                                }
-                                else
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "LastLogout: "+ChatColor.DARK_RED+"disabled");
-
-                                //promoted Groups
-                                List<String> groups = new ArrayList<String>();
-
-                                for( Map.Entry<Long, String> entry : plugin.PromotionGroups.entrySet() )
-                                {
-                                    Long time = entry.getKey();
-                                    String group = entry.getValue(); 
-
-                                    for(String world : plugin.CONFIG.getStringList("groups." + Long.toString(time) + ".world",new ArrayList<String>()))
-                                    {
-                                        
-                                        for (String groupname : plugin.CONFIG.getStringList("groups."+Long.toString(time)+".promotionGroup",new ArrayList<String>()))
-                                        {
-                                            if(!groupname.startsWith("^"))
-                                                if (PermissionHandler.isInGroup(player, groupname, world))
-                                                    if(!groups.contains(groupname))
-                                                        groups.add(groupname);
-
-                                        }
-                                    }
-                                }
-
-                                if(groups.size() > 0 )
-                                {
-                                    String gr = "";
-                                    for(int i = 0; i < groups.size();i++)
-                                    {
-                                        gr += " "+groups.get(i);
-                                    }
-
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "Promoted groups:"+ChatColor.DARK_RED+gr);
-                                }
-                                else
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "Promoted groups:"+ChatColor.DARK_RED+" None yet");
-
-                                SimpleDateFormat df = new SimpleDateFormat( "yyyy-MM-dd HH:mm:ss" );
-
-                                Date date = null;
-
-                                try
-                                {
-                                    date = df.parse(plugin.CONFIG.getString("nextReset"));
-                                } catch(Exception e)
-                                {
-
-                                }
-                                Long zeit = (Long) Calendar.getInstance().getTimeInMillis()/1000;
-
-                                if (date != null)
-                                {
-                                    Long sek = date.getTime()/1000-zeit;
-                                    sender.sendMessage(ChatColor.DARK_GREEN + "Next Reset in "+ChatColor.DARK_RED+plugin.formatSek(sek.toString()));
-                                }
-                            }
+                                
+                            
                         }
                         else
                         {

@@ -4,6 +4,8 @@
  */
 package de.Chumper.ActivityPromotion;
 
+import de.Chumper.ActivityPromotion.ActivityPromotion;
+import de.Chumper.ActivityPromotion.Permission;
 import org.bukkit.entity.Player;
 import ru.tehkode.permissions.PermissionManager;
 import ru.tehkode.permissions.bukkit.PermissionsEx;

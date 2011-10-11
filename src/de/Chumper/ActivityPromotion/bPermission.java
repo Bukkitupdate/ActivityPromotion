@@ -4,6 +4,8 @@
  */
 package de.Chumper.ActivityPromotion;
 
+import de.Chumper.ActivityPromotion.ActivityPromotion;
+import de.Chumper.ActivityPromotion.Permission;
 import de.bananaco.permissions.Permissions;
 import de.bananaco.permissions.worlds.WorldPermissionsManager;
 import java.util.List;

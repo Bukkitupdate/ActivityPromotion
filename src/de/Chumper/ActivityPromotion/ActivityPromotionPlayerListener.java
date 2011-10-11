@@ -1,5 +1,6 @@
 package de.Chumper.ActivityPromotion;
 
+import java.util.Calendar;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerKickEvent;
@@ -23,6 +24,13 @@ class ActivityPromotionPlayerListener extends PlayerListener{
     @Override
     public void onPlayerAnimation(PlayerAnimationEvent event)
     {
+        //Add a five (5) second time, to prevent the checking adter every tick
+        //and 
+        if(plugin.PLAYER.get(event.getPlayer().getName()).getTimeLastAction() + 2 > Calendar.getInstance().getTimeInMillis()/1000 )
+        {
+            return;
+        }
+        
         plugin.updatePlayer(event.getPlayer().getName());
         plugin.checkPromotion(event.getPlayer());
         plugin.checkReset();
@@ -30,6 +38,13 @@ class ActivityPromotionPlayerListener extends PlayerListener{
     @Override
     public void onPlayerMove(PlayerMoveEvent event)
     {
+        //Add a five (5) second time, to prevent the checking adter every tick
+        //and 
+        if(plugin.PLAYER.get(event.getPlayer().getName()).getTimeLastAction() + 2 > Calendar.getInstance().getTimeInMillis()/1000 )
+        {
+            return;
+        }
+        
         plugin.updatePlayer(event.getPlayer().getName());
         plugin.checkPromotion(event.getPlayer());
         plugin.checkReset();

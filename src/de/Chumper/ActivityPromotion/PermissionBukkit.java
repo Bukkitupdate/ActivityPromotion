@@ -6,6 +6,8 @@ package de.Chumper.ActivityPromotion;
 
 
 import com.platymuus.bukkit.permissions.PermissionsPlugin;
+import de.Chumper.ActivityPromotion.ActivityPromotion;
+import de.Chumper.ActivityPromotion.Permission;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
