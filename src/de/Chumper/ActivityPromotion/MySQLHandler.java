@@ -67,7 +67,6 @@ public class MySQLHandler implements CFileHandler{
         
         
         ResultSet rs = null;
-        APPlayer tmp = new APPlayer();
         Map<String, APPlayer> total = new HashMap<String, APPlayer>();
         
         
@@ -84,8 +83,9 @@ public class MySQLHandler implements CFileHandler{
         //we want to have only one result, so set the pointer
         try 
         {
-            while(!rs.next())
+            while(rs.next())
             {
+                 APPlayer tmp = new APPlayer();
                  tmp.setLastLogout(rs.getLong("lastLogout"));
                  tmp.setPassivePeriod(rs.getLong("passivePeriod"));
                  tmp.setTimeLastAction(Long.valueOf("0"));
@@ -157,7 +157,7 @@ public class MySQLHandler implements CFileHandler{
         //we want to have only one result, so set the pointer
         try 
         {
-            while(!rs.next())
+            while(rs.next())
             {
                  tmp.setLastLogout(rs.getLong("lastLogout"));
                  tmp.setPassivePeriod(rs.getLong("passivePeriod"));
@@ -170,6 +170,8 @@ public class MySQLHandler implements CFileHandler{
             plugin.log.warning(plugin.AP+e.getMessage());
         }
         //pointer set, now get the data
+        
+        //Hier sitzt der Fehler... die Daten kommen nicht rein
         
         return tmp;
     }

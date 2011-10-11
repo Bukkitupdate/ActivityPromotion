@@ -27,11 +27,7 @@ public class ActivityPromotion extends JavaPlugin{
 
     
     ActivityPromotionPlayerListener playerListener = new ActivityPromotionPlayerListener(this);
-    public  Map<String, Long> TimePlayed = new HashMap<String, Long>();
-    public Map<String, Long> TimeLastAction = new HashMap<String, Long>();
     public Map<Long, String> PromotionGroups = new HashMap<Long, String>();
-    private Map<String, Long> passivePeriod = new HashMap<String, Long>();
-    private Map<String, Long> lastLogout = new HashMap<String, Long>();
     
     //Neue Überlegung
     //Eine Hashmap, die das aktuelle Spielerobjekt beinhaltet...
@@ -39,12 +35,10 @@ public class ActivityPromotion extends JavaPlugin{
     //Hashmap(name, Objekt)
     public Map<String,APPlayer> PLAYER = new HashMap<String,APPlayer>();
     
-    
     public Logger log; 
     private PluginManager pm;
     
     protected static Configuration CONFIG;
-    protected static Configuration LIST;
     
     private Permission PermissionHandler;
     private CFileHandler FileHandler;
@@ -78,9 +72,9 @@ public class ActivityPromotion extends JavaPlugin{
        
         //register Events
         pm.registerEvent(Event.Type.PLAYER_ANIMATION, playerListener, Event.Priority.Lowest, this);
-        pm.registerEvent(Event.Type.PLAYER_MOVE, playerListener, Event.Priority.Lowest, this);
+        pm.registerEvent(Event.Type.PLAYER_MOVE, playerListener, Event.Priority.Normal, this);
         pm.registerEvent(Event.Type.PLAYER_QUIT, playerListener, Event.Priority.Lowest, this);
-        pm.registerEvent(Event.Type.PLAYER_JOIN, playerListener, Event.Priority.Lowest, this);
+        pm.registerEvent(Event.Type.PLAYER_JOIN, playerListener, Event.Priority.Normal, this);
         pm.registerEvent(Event.Type.PLAYER_KICK, playerListener, Event.Priority.Lowest, this);
         
         
@@ -232,7 +226,7 @@ public class ActivityPromotion extends JavaPlugin{
 
     public void updatePlayer(String name) {
         
-        if (PLAYER.get(name) instanceof APPlayer)
+        if (PLAYER.containsKey(name))
         {
                 
             APPlayer tmp = PLAYER.get(name);
@@ -245,10 +239,6 @@ public class ActivityPromotion extends JavaPlugin{
             Long test = aktime - tmp.getTimeLastAction();
             
             Long lA = tmp.getTimeLastAction();
-            
-            log.warning(AP+time.toString());
-            log.warning(AP+aktime.toString());
-            log.warning(AP+lA.toString());
             
             if(aktime - lA <= idleTime)
             {
@@ -282,9 +272,10 @@ public class ActivityPromotion extends JavaPlugin{
         
         //saveList();
         
-        if (PLAYER.get(name) != null)
+        if (PLAYER.containsKey(name))
         {
             APPlayer tmp = FileHandler.loadPlayer(name);
+            
             PLAYER.put(name, tmp);
         }
         else
