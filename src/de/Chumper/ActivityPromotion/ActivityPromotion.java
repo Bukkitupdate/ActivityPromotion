@@ -732,11 +732,6 @@ public class ActivityPromotion extends JavaPlugin{
 
                     Long akt = Calendar.getInstance().getTimeInMillis()/1000;
                     
-                    log.warning(AP+akt.toString());
-                    log.warning(AP+maxA.toString());
-                    log.warning(AP+name);
-                    log.warning(AP+PLAYER.get(name).getLastLogout().toString());
-                    
                     if (akt - PLAYER.get(name).getLastLogout() >= maxA)
                     {
                         //Too long away
