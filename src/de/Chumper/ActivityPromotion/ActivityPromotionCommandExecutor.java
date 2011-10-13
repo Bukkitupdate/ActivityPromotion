@@ -55,6 +55,7 @@ public class ActivityPromotionCommandExecutor implements CommandExecutor{
                             for(Player pplayer: plugin.getServer().getOnlinePlayers()) {
                                 plugin.initiatePlayer(pplayer);
                             }
+                            PermissionHandler.reload();
                             sender.sendMessage(ChatColor.DARK_GREEN+"Activity Promotion reloaded");
 
                         } else
@@ -91,7 +92,7 @@ public class ActivityPromotionCommandExecutor implements CommandExecutor{
 //--------
                             if (plugin.CONFIG.getBoolean("saveTotalTime", false))
                             {
-                                String tT = Long.toString(plugin.PLAYER.get(args[1]).getTotalTime());
+                                String tT = Long.toString(plugin.PLAYER.get(args[1]).getTotalTime() + plugin.PLAYER.get(args[1]).getTimePlayed());
                                 
                                 sender.sendMessage(ChatColor.DARK_GREEN + "TotalTime: "+ChatColor.DARK_RED+plugin.formatSek(tT));
                                

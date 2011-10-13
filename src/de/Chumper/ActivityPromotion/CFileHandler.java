@@ -16,4 +16,5 @@ public interface CFileHandler {
     public void save(Map<String, APPlayer> PLAYER);     
     public APPlayer loadPlayer(String name);
     public void savePlayer(String name, APPlayer player);
+    public void close();
 }

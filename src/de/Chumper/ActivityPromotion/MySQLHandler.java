@@ -8,6 +8,8 @@ package de.Chumper.ActivityPromotion;
 import java.util.HashMap;
 import java.util.Map;
 import java.sql.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  *
@@ -46,7 +48,7 @@ public class MySQLHandler implements CFileHandler{
         }
         
         String url = "jdbc:mysql://"+this.adress+":"+this.port+"/"+this.database;
-        plugin.log.info(plugin.AP+url);
+        //plugin.log.info(plugin.AP+url);
         
         //try to connect
         try 
@@ -203,6 +205,16 @@ public class MySQLHandler implements CFileHandler{
           }
         
         //save succeed
+    }
+    
+    @Override
+    public void close()
+    {
+        try {
+            this.con.close();
+        } catch (SQLException ex) {
+            plugin.log.warning(plugin.AP+ex.getMessage());
+        }
     }
     
 }

@@ -87,6 +87,7 @@ public class ActivityPromotion extends JavaPlugin{
         
         //CONFIG.save();
         FileHandler.save(PLAYER);
+        FileHandler.close();
         log.log(Level.INFO, "[ActivityPromotion "+this.getDescription().getVersion()+"] disabled");
         
     }
@@ -226,7 +227,9 @@ public class ActivityPromotion extends JavaPlugin{
 
     public void updatePlayer(String name) {
         
-        if (PLAYER.containsKey(name))
+        
+        
+        if (PLAYER.containsKey(name) && PLAYER.get(name) != null)
         {
                 
             APPlayer tmp = PLAYER.get(name);
@@ -270,9 +273,7 @@ public class ActivityPromotion extends JavaPlugin{
         
         String name = player.getName();
         
-        //saveList();
-        
-        if (PLAYER.containsKey(name))
+        if (PLAYER.containsKey(name) && PLAYER.get(name) != null)
         {
             APPlayer tmp = FileHandler.loadPlayer(name);
             
@@ -288,8 +289,12 @@ public class ActivityPromotion extends JavaPlugin{
             tmp.setTimePlayed(Long.valueOf("0"));
             
             PLAYER.put(name, tmp);
+            
         }
 
+        log.warning(AP+Boolean.toString(PLAYER.containsKey(name)));
+        
+        
         PLAYER.get(name).setTimeLastAction(Calendar.getInstance().getTimeInMillis()/1000);
     }
 
@@ -537,7 +542,7 @@ public class ActivityPromotion extends JavaPlugin{
             }
             
             player.sendMessage(ChatColor.DARK_GREEN +"You have been promoted to group: "+ChatColor.DARK_RED + gr);
-            PermissionHandler.reload();
+            //PermissionHandler.reload();
         }
         if(removedGroups.size() > 0 )
         {
@@ -548,7 +553,7 @@ public class ActivityPromotion extends JavaPlugin{
             }
             
             player.sendMessage(ChatColor.DARK_GREEN +"You have been removed from group: "+ChatColor.DARK_RED + gr);  
-            PermissionHandler.reload();
+            //PermissionHandler.reload();
         }
         
     }

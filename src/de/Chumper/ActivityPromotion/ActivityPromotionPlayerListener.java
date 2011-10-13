@@ -26,7 +26,7 @@ class ActivityPromotionPlayerListener extends PlayerListener{
     {
         //Add a five (5) second time, to prevent the checking adter every tick
         //and 
-        if(plugin.PLAYER.get(event.getPlayer().getName()).getTimeLastAction() + 2 > Calendar.getInstance().getTimeInMillis()/1000 )
+        if(!plugin.PLAYER.containsKey(event.getPlayer().getName()) || plugin.PLAYER.get(event.getPlayer().getName()).getTimeLastAction() + 2 > Calendar.getInstance().getTimeInMillis()/1000 )
         {
             return;
         }
@@ -40,7 +40,7 @@ class ActivityPromotionPlayerListener extends PlayerListener{
     {
         //Add a five (5) second time, to prevent the checking adter every tick
         //and 
-        if(plugin.PLAYER.get(event.getPlayer().getName()).getTimeLastAction() + 2 > Calendar.getInstance().getTimeInMillis()/1000 )
+        if(!plugin.PLAYER.containsKey(event.getPlayer().getName()) || plugin.PLAYER.get(event.getPlayer().getName()).getTimeLastAction() + 2 > Calendar.getInstance().getTimeInMillis()/1000 )
         {
             return;
         }

@@ -40,12 +40,12 @@ public class FlatFileHandler implements CFileHandler{
         //load the LIST
         LIST.load();
         
-        List<String> test = LIST.getStringList("players", new ArrayList<String>());
+        List<String> test = LIST.getKeys("players");
         
         if(test.isEmpty())
             return temp;
         
-        for(String name : LIST.getKeys("players"))
+        for(String name : test)
         {
             APPlayer tmpPlayer = new APPlayer();
             
@@ -166,6 +166,12 @@ public class FlatFileHandler implements CFileHandler{
         LIST.setProperty("players."+name+".totalTime", player.getTotalTime());
         
         LIST.save();
+    }
+    
+    @Override
+    public void close()
+    {
+        
     }
     
 }
